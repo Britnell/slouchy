@@ -26,6 +26,9 @@
             canvas {
                 width: 100%;
             }
+            #canvas {
+                opacity: 0.5;
+            }
             canvas {
                 position: absolute;
                 inset: 0;
@@ -122,10 +125,11 @@
                                     data.from.z,
                                     -0.15,
                                     0.1,
-                                    5,
+                                    3,
                                     1,
                                 ),
                         });
+                        canvasCtx.lineWidth = 1;
                         drawingUtils.drawConnectors(
                             landmarks,
                             PoseLandmarker.POSE_CONNECTIONS,
@@ -161,8 +165,8 @@
                     nose: "#fbbf24",
                 };
 
-                // points
-                canvasCtx.globalAlpha = 0.5;
+                // points + key tilt lines
+                canvasCtx.globalAlpha = 1;
                 for (const [name, p] of Object.entries(pts)) {
                     canvasCtx.beginPath();
                     canvasCtx.arc(p.x * W, p.y * H, 8, 0, 2 * Math.PI);
@@ -179,23 +183,25 @@
                     canvasCtx.lineWidth = 4;
                     canvasCtx.stroke();
                 };
-                canvasCtx.globalAlpha = 1;
                 line(ear, eye, "#a3e635"); // head
                 line(ear, nose, "#fbbf24"); // head (nose variant)
                 line(ear, shoulder, "#38bdf8"); // neck
                 line(shoulder, hip, "#f472b6"); // back
 
-                // tilt angles: 0 = vertical in camera xy plane
-                const tilt = (p1, p2) => {
-                    const dx = p2.x - p1.x;
-                    const dy = p2.y - p1.y;
-                    return (Math.atan2(dx, -dy) * 180) / Math.PI;
-                };
+                // angles, normalized to [-90, 90]:
+                // head: vs horizontal (+ = eye/nose above ear, - = below)
+                // neck/back: vs vertical (+ = top leans forward/right, - = back)
+                const dx = (p1, p2) => p2.x - p1.x;
+                const dy = (p1, p2) => p2.y - p1.y;
+                const vsHoriz = (p1, p2) =>
+                    (Math.atan2(-dy(p1, p2), Math.abs(dx(p1, p2))) * 180) / Math.PI;
+                const vsVert = (p1, p2) =>
+                    (Math.atan2(dx(p1, p2), Math.abs(dy(p1, p2))) * 180) / Math.PI;
                 return {
-                    headEye: tilt(ear, eye),
-                    headNose: tilt(ear, nose),
-                    neck: tilt(ear, shoulder),
-                    back: tilt(shoulder, hip),
+                    headEye: vsHoriz(ear, eye),
+                    headNose: vsHoriz(ear, nose),
+                    neck: vsVert(ear, shoulder),
+                    back: vsVert(shoulder, hip),
                 };
             }
 
