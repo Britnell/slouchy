@@ -20,16 +20,29 @@ let running = false;
 let lastVideoTime = -1;
 let result = null;
 let lastTilts = null;
-const LANDMARK_SMOOTHING = 0.2;
+const LANDMARK_SMOOTHING = 0.05;
 let smoothedLandmarks = null;
 
 const tiltsEl = document.getElementById("tilts");
 const correctBtn = document.getElementById("correct");
-let correctTilts = { headEye: 0, headNose: 0, neck: 0, back: 0 };
+let correctTilts = JSON.parse(localStorage.getItem("correctTilts") ?? "null") ?? { head: 0, neck: 0, back: 0 };
 
 correctBtn.addEventListener("click", () => {
-    if (lastTilts) correctTilts = { ...lastTilts };
+    if (lastTilts) {
+        correctTilts = { ...lastTilts };
+        localStorage.setItem("correctTilts", JSON.stringify(correctTilts));
+    }
 });
+
+// calibrated deviations, never negative
+function getTilts() {
+    return Object.fromEntries(
+        Object.entries(lastTilts).map(([k, v]) => [
+            k,
+            Math.max(0, v - correctTilts[k]),
+        ]),
+    );
+}
 
 async function createLandmarker(modelKey) {
     const vision = await FilesetResolver.forVisionTasks(
@@ -153,13 +166,16 @@ function drawPosturePoints(l) {
         (Math.atan2(-dy(p1, p2), Math.abs(dx(p1, p2))) * 180) / Math.PI;
     const vsVert = (p1, p2) =>
         (Math.atan2(dx(p1, p2), Math.abs(dy(p1, p2))) * 180) / Math.PI;
+    const min0 = (a) => Math.max(0, a);
     return {
-        headEye: vsHoriz(ear, eye),
-        headNose: vsHoriz(ear, nose),
-        neck: vsVert(ear, shoulder),
-        back: vsVert(shoulder, hip),
+        head: min0(-vsHoriz(ear, eye)),
+        neck: min0(vsVert(ear, shoulder)),
+        back: min0(vsVert(shoulder, hip)),
     };
 }
+
+let smoothedSlouch = null;
+const SLOUCH_SMOOTHING = 0.05;
 
 function predict() {
     if (!running) return;
@@ -170,10 +186,17 @@ function predict() {
     }
     displayVideoResult(result);
     if (lastTilts) {
+        const tilts = getTilts();
+        const rawSlouch = (lastTilts.neck - correctTilts.neck) + 1.6 * (lastTilts.back - correctTilts.back);
+        const slouch = Math.max(0, rawSlouch);
+        smoothedSlouch = smoothedSlouch === null ? slouch : smoothedSlouch + SLOUCH_SMOOTHING * (slouch - smoothedSlouch);
+        const slouchEl = document.createElement("span");
+        slouchEl.textContent = `slouch: ${smoothedSlouch.toFixed(1)}\u00b0`;
         tiltsEl.replaceChildren(
-            ...Object.entries(lastTilts).map(([k, v]) => {
+            slouchEl,
+            ...Object.entries(tilts).map(([k, v]) => {
                 const span = document.createElement("span");
-                span.textContent = `${k}: ${(v - correctTilts[k]).toFixed(1)}\u00b0`;
+                span.textContent = `${k}: ${v.toFixed(1)}\u00b0`;
                 return span;
             }),
         );
@@ -204,9 +227,14 @@ startBtn.addEventListener("click", async () => {
     predict();
 });
 
-modelSelect.addEventListener("change", async () => {
+const savedModel = localStorage.getItem("model");
+if (savedModel && MODELS[savedModel]) modelSelect.value = savedModel;
+modelSelect.addEventListener("change", () => {
+    localStorage.setItem("model", modelSelect.value);
     if (poseLandmarker) {
         poseLandmarker.close();
         poseLandmarker = null;
     }
 });
+
+startBtn.click();

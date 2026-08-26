@@ -9,3 +9,8 @@
 - you do not need "more context" to complete the task, generally you will be given context/reference for the task at hand. 
 - if you need more information, the task is unclear, then ask a question. i'd prefer too many questions than too few 
 - i have dev server running - ask me for debug output or errors
+
+
+currently working on mediapipe demo in
+`src/pages/mediapipe.astro`
+`src/scripts/mediapipe.ts`
