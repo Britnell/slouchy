@@ -11,6 +11,16 @@ const modelSelect = document.getElementById("model-select");
 
 fitToVideo(canvas, video);
 
+// --- tweakables ---
+const SLOUCH_THRESHOLD = 13; // deg, above this = slouching
+const SLOUCH_PERIOD = 3; // seconds of slouch before alerting
+const ALERT_NOTES = [
+    [0.15, 520],
+    [0.4, 390],
+]; // [start offset s, freq Hz]
+const ALERT_VOLUME = 0.15;
+const NOTE_LENGTH = 0.18; // s
+
 let landmarker = null;
 let running = false;
 let lastVideoTime = -1;
@@ -47,12 +57,59 @@ function displayVideoResult(result) {
     }
 }
 
+function beep() {
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    // blip-blop: two descending notes, delayed start so BT doesn't cut it off
+    ALERT_NOTES.forEach(([t, freq]) => {
+        const osc = ctx.createOscillator();
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        osc.start(now + t);
+        osc.stop(now + t + NOTE_LENGTH);
+    });
+    gain.gain.value = ALERT_VOLUME;
+    setTimeout(() => ctx.close(), 1000);
+}
+
+// --- slouch detection state ---
+let slouchStart = null;
+let slouching = false;
+
+function onSlouchStart() {
+    console.log("slouch start");
+    beep();
+}
+
+function onSlouchEnd() {
+    console.log("slouch end");
+}
+
+function updateSlouch(slouch, now = performance.now()) {
+    if (slouch <= SLOUCH_THRESHOLD) {
+        slouchStart = null;
+        if (slouching) {
+            slouching = false;
+            onSlouchEnd();
+        }
+        return;
+    }
+    if (slouchStart === null) slouchStart = now;
+    if (!slouching && now - slouchStart >= SLOUCH_PERIOD * 1000) {
+        slouching = true;
+        onSlouchStart();
+    }
+}
+
 function updateReadout() {
     if (!lastTilts) return;
     const tilts = deviations(lastTilts, correctTilts);
     const slouch = slouchMeter.value(lastTilts, correctTilts);
+    updateSlouch(slouch);
     const slouchEl = document.createElement("span");
-    slouchEl.textContent = `slouch: ${slouch.toFixed(1)}\u00b0`;
+    slouchEl.textContent = `slouch: ${slouch.toFixed(1)}\u00b0${slouching ? " SLOUCHING" : ""}`;
     tiltsEl.replaceChildren(
         slouchEl,
         ...Object.entries(tilts).map(([k, v]) => {
@@ -72,7 +129,7 @@ correctBtn?.addEventListener("click", () => {
     }
 });
 
-startBtn.addEventListener("click", async () => {
+startBtn?.addEventListener("click", async () => {
     if (running) {
         running = false;
         startBtn.textContent = "Start Camera";

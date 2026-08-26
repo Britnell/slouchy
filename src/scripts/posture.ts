@@ -49,21 +49,21 @@ export function deviations(tilts, correctTilts) {
 const SLOUCH_SMOOTHING = 0.05;
 
 export class SlouchMeter {
-    #smoothed = null;
+    smoothed = null;
 
     // tilts: raw (uncalibrated) tilts; correctTilts: calibration reference
     value(tilts, correctTilts) {
         const raw =
             tilts.neck - correctTilts.neck + 1.6 * (tilts.back - correctTilts.back);
         const slouch = Math.max(0, raw);
-        this.#smoothed =
-            this.#smoothed === null
+        this.smoothed =
+            this.smoothed === null
                 ? slouch
-                : this.#smoothed + SLOUCH_SMOOTHING * (slouch - this.#smoothed);
-        return this.#smoothed;
+                : this.smoothed + SLOUCH_SMOOTHING * (slouch - this.smoothed);
+        return this.smoothed;
     }
 
     reset() {
-        this.#smoothed = null;
+        this.smoothed = null;
     }
 }
