@@ -1,7 +1,6 @@
 import {
     FilesetResolver,
     PoseLandmarker,
-    DrawingUtils,
 } from "@mediapipe/tasks-vision";
 
 const MODELS = {
@@ -17,7 +16,6 @@ const startBtn = document.getElementById("start");
 const modelSelect = document.getElementById("model-select");
 
 let poseLandmarker = null;
-let drawingUtils = null;
 let running = false;
 let lastVideoTime = -1;
 let result = null;
@@ -50,23 +48,27 @@ function displayVideoResult(result) {
     canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (result.landmarks) {
-        drawingUtils = new DrawingUtils(canvasCtx);
         for (const landmarks of result.landmarks) {
-            drawingUtils.drawLandmarks(landmarks, {
-                radius: (data) =>
-                    DrawingUtils.lerp(
-                        data.from.z,
-                        -0.15,
-                        0.1,
-                        3,
-                        1,
-                    ),
+            // white box through shoulders + hips
+            const W = canvas.width, H = canvas.height;
+            const corners = [11, 12, 24, 23];
+            canvasCtx.beginPath();
+            corners.forEach((i, idx) => {
+                const p = landmarks[i];
+                if (idx === 0) canvasCtx.moveTo(p.x * W, p.y * H);
+                else canvasCtx.lineTo(p.x * W, p.y * H);
             });
-            canvasCtx.lineWidth = 1;
-            drawingUtils.drawConnectors(
-                landmarks,
-                PoseLandmarker.POSE_CONNECTIONS,
-            );
+            canvasCtx.closePath();
+            canvasCtx.strokeStyle = "#ffffff";
+            canvasCtx.lineWidth = 3;
+            canvasCtx.stroke();
+            for (const i of corners) {
+                const p = landmarks[i];
+                canvasCtx.beginPath();
+                canvasCtx.arc(p.x * W, p.y * H, 4, 0, 2 * Math.PI);
+                canvasCtx.fillStyle = "#ffffff";
+                canvasCtx.fill();
+            }
             lastTilts = drawPosturePoints(landmarks);
         }
     }
