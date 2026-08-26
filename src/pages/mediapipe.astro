@@ -39,6 +39,11 @@
             select {
                 margin: 12px 8px;
             }
+            #tilts {
+                font-family: monospace;
+                font-size: 16px;
+                color: #eee;
+            }
         </style>
     </head>
     <body>
@@ -54,6 +59,7 @@
             <video id="video" playsinline autoplay muted></video>
             <canvas id="canvas"></canvas>
         </div>
+        <pre id="tilts"></pre>
 
         <script>
             import {
@@ -79,6 +85,9 @@
             let running = false;
             let lastVideoTime = -1;
             let result = null;
+            let lastTilts = null;
+
+            const tiltsEl = document.getElementById("tilts");
 
             async function createLandmarker(modelKey) {
                 const vision = await FilesetResolver.forVisionTasks(
@@ -121,7 +130,7 @@
                             landmarks,
                             PoseLandmarker.POSE_CONNECTIONS,
                         );
-                        drawPosturePoints(landmarks);
+                        lastTilts = drawPosturePoints(landmarks);
                     }
                 }
                 canvasCtx.restore();
@@ -153,14 +162,12 @@
                 };
 
                 // points
+                canvasCtx.globalAlpha = 0.5;
                 for (const [name, p] of Object.entries(pts)) {
                     canvasCtx.beginPath();
                     canvasCtx.arc(p.x * W, p.y * H, 8, 0, 2 * Math.PI);
                     canvasCtx.fillStyle = colors[name];
                     canvasCtx.fill();
-                    canvasCtx.strokeStyle = "#000";
-                    canvasCtx.lineWidth = 2;
-                    canvasCtx.stroke();
                 }
 
                 // key tilt lines
@@ -172,6 +179,7 @@
                     canvasCtx.lineWidth = 4;
                     canvasCtx.stroke();
                 };
+                canvasCtx.globalAlpha = 1;
                 line(ear, eye, "#a3e635"); // head
                 line(ear, nose, "#fbbf24"); // head (nose variant)
                 line(ear, shoulder, "#38bdf8"); // neck
@@ -199,6 +207,11 @@
                     result = poseLandmarker.detectForVideo(video, startTimeMs);
                 }
                 displayVideoResult(result);
+                if (lastTilts) {
+                    tiltsEl.textContent = Object.entries(lastTilts)
+                        .map(([k, v]) => `${k}: ${v.toFixed(1)}°`)
+                        .join("   ");
+                }
                 requestAnimationFrame(predict);
             }
 
