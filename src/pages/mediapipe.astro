@@ -1,0 +1,171 @@
+---
+
+---
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Posture Detection</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111;
+                color: #eee;
+                font-family: system-ui, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            #container {
+                position: relative;
+                width: 100%;
+                max-width: 960px;
+            }
+            video,
+            canvas {
+                width: 100%;
+            }
+            canvas {
+                position: absolute;
+                inset: 0;
+            }
+            button {
+                margin: 12px;
+                padding: 8px 16px;
+                font-size: 16px;
+                cursor: pointer;
+            }
+            select {
+                margin: 12px 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <div>
+            <select id="model-select">
+                <option value="lite" selected>Pose Landmarker (Lite)</option>
+                <option value="full">Pose Landmarker (Full)</option>
+                <option value="heavy">Pose Landmarker (Heavy)</option>
+            </select>
+            <button id="start">Start Camera</button>
+        </div>
+        <div id="container">
+            <video id="video" playsinline autoplay muted></video>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <script>
+            import {
+                FilesetResolver,
+                PoseLandmarker,
+                DrawingUtils,
+            } from "@mediapipe/tasks-vision";
+
+            const MODELS = {
+                lite: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+                full: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+                heavy: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task",
+            };
+
+            const video = document.getElementById("video");
+            const canvas = document.getElementById("canvas");
+            const canvasCtx = canvas.getContext("2d");
+            const startBtn = document.getElementById("start");
+            const modelSelect = document.getElementById("model-select");
+
+            let poseLandmarker = null;
+            let drawingUtils = null;
+            let running = false;
+            let lastVideoTime = -1;
+            let result = null;
+
+            async function createLandmarker(modelKey) {
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm",
+                );
+                return PoseLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: MODELS[modelKey],
+                        delegate: "GPU",
+                    },
+                    runningMode: "VIDEO",
+                    numPoses: 1,
+                    minPoseDetectionConfidence: 0.5,
+                    minPosePresenceConfidence: 0.5,
+                    minTrackingConfidence: 0.5,
+                    outputSegmentationMasks: false,
+                });
+            }
+
+            function displayVideoResult(result) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (result.landmarks) {
+                    drawingUtils = new DrawingUtils(canvasCtx);
+                    for (const landmarks of result.landmarks) {
+                        drawingUtils.drawLandmarks(landmarks, {
+                            radius: (data) =>
+                                DrawingUtils.lerp(
+                                    data.from.z,
+                                    -0.15,
+                                    0.1,
+                                    5,
+                                    1,
+                                ),
+                        });
+                        drawingUtils.drawConnectors(
+                            landmarks,
+                            PoseLandmarker.POSE_CONNECTIONS,
+                        );
+                    }
+                }
+                canvasCtx.restore();
+            }
+
+            function predict() {
+                if (!running) return;
+                if (video.currentTime !== lastVideoTime && poseLandmarker) {
+                    lastVideoTime = video.currentTime;
+                    const startTimeMs = performance.now();
+                    result = poseLandmarker.detectForVideo(video, startTimeMs);
+                }
+                displayVideoResult(result);
+                requestAnimationFrame(predict);
+            }
+
+            startBtn.addEventListener("click", async () => {
+                if (running) {
+                    running = false;
+                    startBtn.textContent = "Start Camera";
+                    video.srcObject = null;
+                    return;
+                }
+                startBtn.disabled = true;
+                startBtn.textContent = "Loading model...";
+                if (!poseLandmarker) {
+                    poseLandmarker = await createLandmarker(modelSelect.value);
+                }
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                });
+                video.srcObject = stream;
+                await video.play();
+                running = true;
+                startBtn.disabled = false;
+                startBtn.textContent = "Stop";
+                predict();
+            });
+
+            modelSelect.addEventListener("change", async () => {
+                if (poseLandmarker) {
+                    poseLandmarker.close();
+                    poseLandmarker = null;
+                }
+            });
+        </script>
+    </body>
+</html>
