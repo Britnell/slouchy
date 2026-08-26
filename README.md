@@ -3,9 +3,19 @@ lets build a multi-device ai posture detection
 
 ## ai posture detection
 mediapipe pose landmark detection
-- https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/pose-landmarker.ts
+- example: https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/pose-landmarker.ts
 - https://github.com/google-ai-edge/mediapipe/blob/master/docs/solutions/pose.md
+- docs : https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker
 
+gives 33 limited points, for posture calc :
+- assume camera is from side view
+- L/R shoulder midpooint will give us the shoulder position
+- LR hip midpoint gives hip position
+- sideview only one ear will be visible, so use z to find front ear and use that as earpos
+- find the front eye via z and use as eye pos
+- head tilt = ear to eye pos vector
+- neck tilt = ear to shoulder
+- back tile = shoulder to hip
 
 ## laptop + smartphone
 most solutions use laptop webcam, but that doesnt have the right angle
