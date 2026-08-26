@@ -61,8 +61,10 @@ function beep() {
     const ctx = new AudioContext();
     const gain = ctx.createGain();
     gain.connect(ctx.destination);
-    const now = ctx.currentTime;
-    // blip-blop: two descending notes, delayed start so BT doesn't cut it off
+    if (ctx.state === "suspended") ctx.resume();
+    console.log("beep", ctx.state);
+    const now = ctx.currentTime + 0.1; // small delay so BT doesn't cut off start
+    // blip-blop: two descending notes
     ALERT_NOTES.forEach(([t, freq]) => {
         const osc = ctx.createOscillator();
         osc.frequency.value = freq;
@@ -71,7 +73,7 @@ function beep() {
         osc.stop(now + t + NOTE_LENGTH);
     });
     gain.gain.value = ALERT_VOLUME;
-    setTimeout(() => ctx.close(), 1000);
+    setTimeout(() => ctx.close(), 2000);
 }
 
 // --- slouch detection state ---
