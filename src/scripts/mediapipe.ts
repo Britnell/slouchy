@@ -20,8 +20,16 @@ let running = false;
 let lastVideoTime = -1;
 let result = null;
 let lastTilts = null;
+const LANDMARK_SMOOTHING = 0.2;
+let smoothedLandmarks = null;
 
 const tiltsEl = document.getElementById("tilts");
+const correctBtn = document.getElementById("correct");
+let correctTilts = { headEye: 0, headNose: 0, neck: 0, back: 0 };
+
+correctBtn.addEventListener("click", () => {
+    if (lastTilts) correctTilts = { ...lastTilts };
+});
 
 async function createLandmarker(modelKey) {
     const vision = await FilesetResolver.forVisionTasks(
@@ -48,7 +56,19 @@ function displayVideoResult(result) {
     canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (result.landmarks) {
-        for (const landmarks of result.landmarks) {
+        for (const rawLandmarks of result.landmarks) {
+            // smooth landmark positions to reduce jitter
+            if (!smoothedLandmarks)
+                smoothedLandmarks = rawLandmarks.map((p) => ({ ...p }));
+            for (let i = 0; i < rawLandmarks.length; i++) {
+                const s = smoothedLandmarks[i],
+                    p = rawLandmarks[i];
+                s.x += LANDMARK_SMOOTHING * (p.x - s.x);
+                s.y += LANDMARK_SMOOTHING * (p.y - s.y);
+                s.z += LANDMARK_SMOOTHING * (p.z - s.z);
+            }
+            const landmarks = smoothedLandmarks;
+
             // white box through shoulders + hips
             const W = canvas.width, H = canvas.height;
             const corners = [11, 12, 24, 23];
@@ -153,7 +173,7 @@ function predict() {
         tiltsEl.replaceChildren(
             ...Object.entries(lastTilts).map(([k, v]) => {
                 const span = document.createElement("span");
-                span.textContent = `${k}: ${v.toFixed(1)}\u00b0`;
+                span.textContent = `${k}: ${(v - correctTilts[k]).toFixed(1)}\u00b0`;
                 return span;
             }),
         );
