@@ -1,73 +1,41 @@
 ---
-
+import "../styles/global.css";
 ---
 
 <!--
     Page layout: <video> with a <canvas> absolutely positioned on top (overlay)
     to draw pose landmarks/posture points over the live camera feed.
 -->
-
 <html lang="en">
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Posture Detection</title>
-        <style>
-            body {
-                margin: 0;
-                background: #111;
-                color: #eee;
-                font-family: system-ui, sans-serif;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-            }
-            #container {
-                position: relative;
-                width: 100%;
-                max-width: 960px;
-            }
-            video,
-            canvas {
-                width: 100%;
-            }
-            #canvas {
-                opacity: 0.5;
-            }
-            canvas {
-                position: absolute;
-                inset: 0;
-            }
-            button {
-                margin: 12px;
-                padding: 8px 16px;
-                font-size: 16px;
-                cursor: pointer;
-            }
-            select {
-                margin: 12px 8px;
-            }
-            #tilts {
-                font-family: monospace;
-                font-size: 16px;
-                color: #eee;
-            }
-        </style>
     </head>
-    <body>
+    <body
+        class="flex min-h-screen flex-col items-center bg-neutral-900 font-sans text-neutral-200"
+    >
         <div>
-            <select id="model-select">
+            <select id="model-select" class="m-3">
                 <option value="lite" selected>Pose Landmarker (Lite)</option>
                 <option value="full">Pose Landmarker (Full)</option>
                 <option value="heavy">Pose Landmarker (Heavy)</option>
             </select>
-            <button id="start">Start Camera</button>
+            <button id="start" class="m-3 cursor-pointer px-4 py-2 text-base"
+                >Start Camera</button
+            >
         </div>
-        <div id="container">
-            <video id="video" playsinline autoplay muted></video>
-            <canvas id="canvas"></canvas>
+        <div
+            class="grid w-full max-w-[600px] gap-6 lg:max-w-5xl lg:grid-cols-2"
+        >
+            <div id="container" class="relative w-full">
+                <video id="video" playsinline autoplay muted class="w-full"
+                ></video>
+                <canvas id="canvas" class="absolute inset-0 w-full opacity-50"
+                ></canvas>
+            </div>
+            <div id="tilts" class="flex flex-col gap-1 font-mono text-base"></div>
         </div>
-        <pre id="tilts"></pre>
 
         <script src="../scripts/mediapipe.ts"></script>
     </body>

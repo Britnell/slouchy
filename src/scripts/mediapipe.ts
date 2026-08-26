@@ -148,9 +148,13 @@ function predict() {
     }
     displayVideoResult(result);
     if (lastTilts) {
-        tiltsEl.textContent = Object.entries(lastTilts)
-            .map(([k, v]) => `${k}: ${v.toFixed(1)}°`)
-            .join("   ");
+        tiltsEl.replaceChildren(
+            ...Object.entries(lastTilts).map(([k, v]) => {
+                const span = document.createElement("span");
+                span.textContent = `${k}: ${v.toFixed(1)}\u00b0`;
+                return span;
+            }),
+        );
     }
     requestAnimationFrame(predict);
 }
