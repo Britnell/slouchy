@@ -14,12 +14,13 @@ fitToVideo(canvas, video);
 // --- tweakables ---
 const SLOUCH_THRESHOLD = 13; // deg, above this = slouching
 const SLOUCH_PERIOD = 3; // seconds of slouch before alerting
-const ALERT_NOTES = [
-    [0.15, 520],
-    [0.4, 390],
-]; // [start offset s, freq Hz]
-const ALERT_VOLUME = 0.15;
 const NOTE_LENGTH = 0.18; // s
+const ALERT_NOTES = [
+    [0.15, 660, NOTE_LENGTH],
+    [0.35, 520, NOTE_LENGTH],
+    [0.75, 520, NOTE_LENGTH * 5],
+]; // [start offset s, freq Hz, length s]
+const ALERT_VOLUME = 0.15;
 
 let landmarker = null;
 let running = false;
@@ -59,20 +60,19 @@ function displayVideoResult(result) {
 
 function beep() {
     const ctx = new AudioContext();
-    const gain = ctx.createGain();
-    gain.connect(ctx.destination);
     if (ctx.state === "suspended") ctx.resume();
-    console.log("beep", ctx.state);
     const now = ctx.currentTime + 0.1; // small delay so BT doesn't cut off start
-    // blip-blop: two descending notes
-    ALERT_NOTES.forEach(([t, freq]) => {
+    // blip-blop: high note then two repeated lower ones
+    ALERT_NOTES.forEach(([t, freq, len]) => {
         const osc = ctx.createOscillator();
         osc.frequency.value = freq;
-        osc.connect(gain);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(ALERT_VOLUME, now + t);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + t + len);
+        osc.connect(gain).connect(ctx.destination);
         osc.start(now + t);
-        osc.stop(now + t + NOTE_LENGTH);
+        osc.stop(now + t + len);
     });
-    gain.gain.value = ALERT_VOLUME;
     setTimeout(() => ctx.close(), 2000);
 }
 
