@@ -1,0 +1,43 @@
+---
+
+---
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width" />
+        <meta name="generator" content={Astro.generator} />
+        <title>camera</title>
+    </head>
+    <body>
+        <h1>camera</h1>
+        <p id="status">no userid</p>
+        <ul id="log"></ul>
+
+        <script>
+            const status = document.getElementById('status')!;
+            const log = document.getElementById('log')!;
+            const uid = new URLSearchParams(location.search).get('uid');
+
+            if (!uid) {
+                status.textContent = 'no uid — open this page via the link on /app';
+            } else {
+                const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+                ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'join', uid })));
+                ws.addEventListener('message', (e) => {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'joined') status.textContent = `connected, uid: ${data.uid}`;
+                    add(`← ${e.data}`);
+                });
+            }
+
+            function add(text: string) {
+                const li = document.createElement('li');
+                li.textContent = text;
+                log.appendChild(li);
+            }
+        </script>
+    </body>
+</html>

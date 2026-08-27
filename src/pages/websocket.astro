@@ -23,7 +23,7 @@
             const form = document.getElementById('form') as HTMLFormElement;
             const input = document.getElementById('input') as HTMLInputElement;
 
-            const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws?topic=posture`);
+            const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws?topic=demo`);
 
             ws.addEventListener('open', () => add(`connected (${ws.protocol || 'ws'})`));
             ws.addEventListener('close', () => add('disconnected'));

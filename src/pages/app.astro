@@ -1,0 +1,47 @@
+---
+
+---
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width" />
+        <meta name="generator" content={Astro.generator} />
+        <title>app</title>
+    </head>
+    <body>
+        <h1>app</h1>
+        <p id="uid">connecting…</p>
+        <p><a id="camlink" href="/camera" style="display:none">open camera</a></p>
+        <ul id="log"></ul>
+
+        <script>
+            const uidEl = document.getElementById('uid')!;
+            const camlink = document.getElementById('camlink') as HTMLAnchorElement;
+            const log = document.getElementById('log')!;
+
+            const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+
+            ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'connect' })));
+            ws.addEventListener('message', (e) => {
+                const data = JSON.parse(e.data);
+                if (data.type === 'registered') {
+                    uidEl.textContent = `uid: ${data.uid}`;
+                    camlink.href = `/camera?uid=${data.uid}`;
+                    camlink.style.display = 'inline';
+                    camlink.textContent = camlink.href;
+                } else {
+                    add(`← ${e.data}`);
+                }
+            });
+
+            function add(text: string) {
+                const li = document.createElement('li');
+                li.textContent = text;
+                log.appendChild(li);
+            }
+        </script>
+    </body>
+</html>

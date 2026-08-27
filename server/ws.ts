@@ -2,12 +2,16 @@
 // bun run server/ws.ts (optional: --hot for reload)
 const PORT = Number(process.env.WS_PORT ?? 3001);
 
+function parse(msg: string | Buffer) {
+  try { return JSON.parse(String(msg)); } catch { return null; }
+}
+
 const server = Bun.serve<{ topic: string }>({
   port: PORT,
   fetch(req, server) {
     const url = new URL(req.url);
     if (url.pathname === "/ws") {
-      if (server.upgrade(req, { data: { topic: url.searchParams.get("topic") ?? "posture" } })) return;
+      if (server.upgrade(req, { data: { topic: url.searchParams.get("topic") ?? "demo" } })) return;
       return new Response("upgrade failed", { status: 400 });
     }
     return new Response("ok");
@@ -19,7 +23,29 @@ const server = Bun.serve<{ topic: string }>({
       console.log(`client joined "${ws.data.topic}"`);
     },
     message(ws, message) {
-      // broadcast to everyone else on the topic (e.g. landmarks from phone)
+      const data = parse(message);
+      if (!data) return;
+
+      // app registration: get a unique id + private channel
+      if (data.type === 'connect') {
+        const uid = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+        ws.data.topic = uid;
+        ws.subscribe(uid);
+        ws.send(JSON.stringify({ type: 'registered', uid }));
+        console.log(`registered ${uid}`);
+        return;
+      }
+
+      // camera joins an existing uid channel
+      if (data.type === 'join' && typeof data.uid === 'string' && /^\d{3}$/.test(data.uid)) {
+        ws.data.topic = data.uid;
+        ws.subscribe(data.uid);
+        ws.send(JSON.stringify({ type: 'joined', uid: data.uid }));
+        console.log(`client joined "${data.uid}"`);
+        return;
+      }
+
+      // broadcast to everyone else on the topic
       server.publish(ws.data.topic, message);
     },
     close(ws) {
