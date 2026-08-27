@@ -32,6 +32,15 @@ const smoother = new LandmarkSmoother();
 const slouchMeter = new SlouchMeter();
 
 const tiltsEl = document.getElementById("tilts");
+const errorEl = document.getElementById("error");
+
+function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.classList.remove("hidden");
+}
+function clearError() {
+    errorEl.classList.add("hidden");
+}
 const correctBtn = document.getElementById("correct");
 let correctTilts = JSON.parse(localStorage.getItem("correctTilts") ?? "null") ?? { head: 0, neck: 0, back: 0 };
 
@@ -139,15 +148,24 @@ startBtn?.addEventListener("click", async () => {
         return;
     }
     startBtn.disabled = true;
+    clearError();
     startBtn.textContent = "Loading model...";
-    if (!landmarker) {
-        landmarker = await createLandmarker(modelSelect.value);
+    try {
+        if (!landmarker) {
+            landmarker = await createLandmarker(modelSelect.value);
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+        });
+        video.srcObject = stream;
+        await video.play();
+    } catch (err) {
+        console.error(err);
+        showError(`Failed to load: ${err.message ?? err}. Try reloading the page.`);
+        startBtn.disabled = false;
+        startBtn.textContent = "Start Camera";
+        return;
     }
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-    });
-    video.srcObject = stream;
-    await video.play();
     running = true;
     startBtn.disabled = false;
     startBtn.textContent = "Stop";
@@ -156,6 +174,7 @@ startBtn?.addEventListener("click", async () => {
 
 const savedModel = localStorage.getItem("model");
 if (savedModel && MODELS[savedModel]) modelSelect.value = savedModel;
+else modelSelect.value = "lite"; // default: lite
 modelSelect.addEventListener("change", () => {
     localStorage.setItem("model", modelSelect.value);
     if (landmarker) {
@@ -164,4 +183,4 @@ modelSelect.addEventListener("change", () => {
     }
 });
 
-startBtn.click();
+if (savedModel && MODELS[savedModel]) startBtn.click();
