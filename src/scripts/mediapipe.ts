@@ -1,5 +1,5 @@
 import { MODELS, createLandmarker, LandmarkSmoother } from "./poseLandmarker";
-import { computeTilts, deviations, calibrate, SlouchMeter } from "./posture";
+import { computeTilts, computeIntrinsic, deviations, calibrate, SlouchMeter } from "./posture";
 
 import { drawFrame, fitToVideo } from "./canvas";
 
@@ -27,11 +27,13 @@ let running = false;
 let lastVideoTime = -1;
 let result = null;
 let lastTilts = null;
+let lastIntrinsic = null;
 
 const smoother = new LandmarkSmoother();
 const slouchMeter = new SlouchMeter();
 
 const tiltsEl = document.getElementById("tilts");
+const intrinsicEl = document.getElementById("intrinsic");
 const errorEl = document.getElementById("error");
 
 function showError(msg) {
@@ -42,7 +44,9 @@ function clearError() {
     errorEl.classList.add("hidden");
 }
 const correctBtn = document.getElementById("correct");
-let correctTilts = JSON.parse(localStorage.getItem("correctTilts") ?? "null") ?? { head: 0, neck: 0, back: 0 };
+const stored = JSON.parse(localStorage.getItem("correctPosture") ?? "null");
+let correctTilts = stored?.tilts ?? { head: 0, neck: 0, back: 0 };
+let correctIntrinsic = stored?.intrinsic ?? { neckHead: 0, neckBody: 0 };
 
 
 function loop() {
@@ -64,6 +68,7 @@ function displayVideoResult(result) {
         const { points, tilts } = computeTilts(landmarks);
         drawFrame(canvasCtx, canvas, points, landmarks);
         lastTilts = tilts;
+        lastIntrinsic = computeIntrinsic(points);
     }
 }
 
@@ -119,15 +124,18 @@ function updateReadout() {
     const tilts = deviations(lastTilts, correctTilts);
     const slouch = slouchMeter.value(lastTilts, correctTilts);
     updateSlouch(slouch);
-    const slouchEl = document.createElement("span");
-    slouchEl.textContent = `slouch: ${slouch.toFixed(1)}\u00b0${slouching ? " SLOUCHING" : ""}`;
+    const span = (text) => {
+        const el = document.createElement("span");
+        el.textContent = text;
+        return el;
+    };
     tiltsEl.replaceChildren(
-        slouchEl,
-        ...Object.entries(tilts).map(([k, v]) => {
-            const span = document.createElement("span");
-            span.textContent = `${k}: ${v.toFixed(1)}\u00b0`;
-            return span;
-        }),
+        span(`slouch: ${slouch.toFixed(1)}\u00b0${slouching ? " SLOUCHING" : ""}`),
+        ...Object.entries(tilts).map(([k, v]) => span(`${k}: ${v.toFixed(1)}\u00b0`)),
+    );
+    intrinsicEl.replaceChildren(
+        span(`headNeck: ${(lastIntrinsic.neckHead - correctIntrinsic.neckHead).toFixed(1)}\u00b0`),
+        span(`neckBody: ${(lastIntrinsic.neckBody - correctIntrinsic.neckBody).toFixed(1)}\u00b0`),
     );
 }
 
@@ -136,7 +144,11 @@ function updateReadout() {
 correctBtn?.addEventListener("click", () => {
     if (lastTilts) {
         correctTilts = calibrate(lastTilts);
-        localStorage.setItem("correctTilts", JSON.stringify(correctTilts));
+        correctIntrinsic = { ...lastIntrinsic };
+        localStorage.setItem(
+            "correctPosture",
+            JSON.stringify({ tilts: correctTilts, intrinsic: correctIntrinsic }),
+        );
     }
 });
 
@@ -152,6 +164,7 @@ startBtn?.addEventListener("click", async () => {
     startBtn.textContent = "Loading model...";
     try {
         if (!landmarker) {
+            localStorage.setItem("model", modelSelect.value);
             landmarker = await createLandmarker(modelSelect.value);
         }
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -173,8 +186,7 @@ startBtn?.addEventListener("click", async () => {
 });
 
 const savedModel = localStorage.getItem("model");
-if (savedModel && MODELS[savedModel]) modelSelect.value = savedModel;
-else modelSelect.value = "lite"; // default: lite
+modelSelect.value = savedModel && MODELS[savedModel] ? savedModel : "lite"; // default: lite
 modelSelect.addEventListener("change", () => {
     localStorage.setItem("model", modelSelect.value);
     if (landmarker) {

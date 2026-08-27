@@ -32,6 +32,23 @@ export function computeTilts(l) {
     };
 }
 
+// intrinsic angles, from the same smoothed midpoints. no axis, no calibration.
+// neckBody: angle at shoulder between torso (shoulder->hip) and neck (shoulder->ear)
+// neckHead: angle at ear between neck (ear->shoulder) and head (ear->eye)
+const angleBetween = (p1, p2, p3) => {
+    const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+    const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+    const dot = v1.x * v2.x + v1.y * v2.y;
+    const m = Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y);
+    return (Math.acos(Math.min(1, Math.max(-1, dot / m))) * 180) / Math.PI;
+};
+export function computeIntrinsic({ shoulder, hip, ear, eye }) {
+    return {
+        neckBody: angleBetween(hip, shoulder, ear),
+        neckHead: angleBetween(shoulder, ear, eye),
+    };
+}
+
 export function calibrate(tilts) {
     return { ...tilts };
 }
@@ -41,7 +58,7 @@ export function deviations(tilts, correctTilts) {
     return Object.fromEntries(
         Object.entries(tilts).map(([k, v]) => [
             k,
-            Math.max(0, v - correctTilts[k]),
+            Math.max(0, v - (correctTilts[k] ?? 0)),
         ]),
     );
 }
