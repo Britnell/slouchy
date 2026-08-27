@@ -1,10 +1,15 @@
 import { createLandmarker, LandmarkSmoother } from './poseLandmarker';
 import { computeTilts } from './posture';
+import { drawFrame, fitToVideo } from './canvas';
 import { CameraConnection } from './webrtc-camera';
 
 const uid = new URLSearchParams(location.search).get('uid');
 const status = document.getElementById('status')!;
 const video = document.getElementById('video') as HTMLVideoElement;
+const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+const canvasCtx = canvas.getContext('2d');
+
+fitToVideo(canvas, video);
 
 function setStatus(text: string) {
     status.textContent = text;
@@ -46,6 +51,7 @@ async function startDetection(conn: CameraConnection) {
             if (raw) {
                 const landmarks = smoother.smooth(raw);
                 const { points } = computeTilts(landmarks);
+                drawFrame(canvasCtx, canvas, points, landmarks);
                 conn.send(
                     JSON.stringify({
                         shoulder: pt(points.shoulder),
