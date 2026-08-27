@@ -9,7 +9,13 @@ Both pages log these steps in order (with timestamps) into their `#log` list.
 4. `→ signal answer` — sent answer back
 5. `← signal candidate` (×N) / `→ signal candidate` (×N) — trickle ICE
 6. `✔ webrtc connected` — data channel open
-7. `← {"count":n}` — JSON received from camera, once per second
+7. `→ {"shoulder":…,"hip":…,"ear":…,"eye":…,"nose":…}` — posture points from camera, every detected frame
+
+## Camera pipeline
+1. MediaPipe Pose Landmarker (lite) detects raw landmarks per video frame
+2. landmarks are smoothed with an EMA (`LandmarkSmoother`)
+3. posture points are derived from the smoothed landmarks: shoulder/hip = left–right midpoints, ear/eye/nose = front side (picked by z)
+4. points (normalized x/y) are sent to app over the rtc data channel — all posture logic (angles, calibration, alerts) runs on app side
 
 ## camera (`/camera?uid=123`)
 1. `ws connected` — websocket to relay open
@@ -18,7 +24,7 @@ Both pages log these steps in order (with timestamps) into their `#log` list.
 4. `← signal answer` — app's answer received
 5. `→ signal candidate` (×N) / `← signal candidate` (×N) — trickle ICE
 6. `✔ webrtc connected` — data channel open
-7. `→ {"count":n}` — sends count to app every second
+7. loads pose model (lite) + camera, then `→ {"shoulder":…,"hip":…,"ear":…,"eye":…,"nose":…}` — posture points sent to app every detected frame
 
 ## Signaling notes
 - Relay (`server/ws.ts`) broadcasts `signal` messages on the uid channel; clients ignore their own echoes via random `from` id.
