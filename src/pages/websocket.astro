@@ -1,0 +1,49 @@
+---
+
+---
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="viewport" content="width=device-width" />
+        <meta name="generator" content={Astro.generator} />
+        <title>websocket</title>
+    </head>
+    <body>
+        <h1>websocket</h1>
+        <ul id="log"></ul>
+        <form id="form">
+            <input id="input" autocomplete="off" />
+            <button>send</button>
+        </form>
+
+        <script>
+            const log = document.getElementById('log')!;
+            const form = document.getElementById('form') as HTMLFormElement;
+            const input = document.getElementById('input') as HTMLInputElement;
+
+            const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws?topic=posture`);
+
+            ws.addEventListener('open', () => add(`connected (${ws.protocol || 'ws'})`));
+            ws.addEventListener('close', () => add('disconnected'));
+            ws.addEventListener('error', () => add('error'));
+            ws.addEventListener('message', (e) => add(`← ${e.data}`));
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (input.value && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'msg', text: input.value }));
+                    add(`→ ${input.value}`);
+                    input.value = '';
+                }
+            });
+
+            function add(text: string) {
+                const li = document.createElement('li');
+                li.textContent = text;
+                log.appendChild(li);
+            }
+        </script>
+    </body>
+</html>

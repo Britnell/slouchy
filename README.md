@@ -21,10 +21,7 @@ gives 33 limited points, for posture calc :
 most solutions use laptop webcam, but that doesnt have the right angle
 so lets use an old smartphone which can be placed for a sideways view of user. the smartphone will send the video stream to our browser running web app. then we will run ai detection on laptop in browser.
 
-## bun + websocket + astro
-- **astro** (ssr / api endpoints) hosts the web app
-- **bun** (`Bun.serve`, native websockets, no framework) runs a small ws relay: phone sends jpeg frames, bun broadcasts them to the laptop
-- dev: vite proxies `/ws` to the bun port; prod: same origin, no proxy needed
+actually iphone can easily run detection too it seems, so lets test just sending over landmarks over websocket.
 
 ## local https (required for camera on phone)
 getUserMedia needs a secure context — localhost is exempt, but the phone hits the dev server over LAN, so it needs https via mkcert:
