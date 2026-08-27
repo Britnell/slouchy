@@ -28,7 +28,7 @@ const server = Bun.serve<{ topic: string }>({
 
       // app registration: get a unique id + private channel
       if (data.type === 'connect') {
-        const uid = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+        const uid = '123';
         ws.data.topic = uid;
         ws.subscribe(uid);
         ws.send(JSON.stringify({ type: 'registered', uid }));
@@ -42,6 +42,16 @@ const server = Bun.serve<{ topic: string }>({
         ws.subscribe(data.uid);
         ws.send(JSON.stringify({ type: 'joined', uid: data.uid }));
         console.log(`client joined "${data.uid}"`);
+        return;
+      }
+
+      // leave current topic channel
+      if (data.type === 'leave') {
+        console.log(`client left "${ws.data.topic}"`);
+        ws.unsubscribe(ws.data.topic);
+        ws.data.topic = 'demo';
+        ws.subscribe('demo');
+        ws.send(JSON.stringify({ type: 'left' }));
         return;
       }
 

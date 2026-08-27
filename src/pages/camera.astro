@@ -13,29 +13,69 @@
     </head>
     <body>
         <h1>camera</h1>
-        <p id="status">no userid</p>
         <ul id="log"></ul>
 
         <script>
-            const status = document.getElementById('status')!;
+            import Peer from 'simple-peer';
+
             const log = document.getElementById('log')!;
             const uid = new URLSearchParams(location.search).get('uid');
 
             if (!uid) {
-                status.textContent = 'no uid — open this page via the link on /app';
+                add('✖ no uid — open this page via the url logged on /app');
             } else {
+                const myId = crypto.randomUUID();
                 const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-                ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'join', uid })));
+                let peer: InstanceType<typeof Peer> | null = null;
+
+                ws.addEventListener('open', () => {
+                    add('ws connected');
+                    ws.send(JSON.stringify({ type: 'join', uid }));
+                });
+
                 ws.addEventListener('message', (e) => {
                     const data = JSON.parse(e.data);
-                    if (data.type === 'joined') status.textContent = `connected, uid: ${data.uid}`;
-                    add(`← ${e.data}`);
+
+                    if (data.type === 'joined') {
+                        add(`joined channel #${data.uid}`);
+                        peer = makePeer(); // only now — offer would be lost before ws is open
+                        return;
+                    }
+
+                    if (data.type === 'signal') {
+                        if (data.from === myId) return; // own echo
+                        add(`← signal ${(data.signal as any).type}`);
+                        peer?.signal(data.signal);
+                        return;
+                    }
                 });
+
+                function makePeer() {
+                    let count = 0;
+                    const p = new Peer({ initiator: true });
+                    p.on('signal', (s) => {
+                        add(`→ signal ${(s as any).type}`);
+                        ws.send(JSON.stringify({ type: 'signal', from: myId, signal: s }));
+                    });
+                    p.on('connect', () => {
+                        add('✔ webrtc connected');
+                        ws.send(JSON.stringify({ type: 'leave' }));
+                        add('ws signaling channel left');
+                        setInterval(() => {
+                            const msg = JSON.stringify({ count: ++count });
+                            p.send(msg);
+                            add(`→ ${msg}`);
+                        }, 1000);
+                    });
+                    p.on('close', () => add('✖ webrtc closed'));
+                    p.on('error', (e) => add(`✖ peer error: ${e.message}`));
+                    return p;
+                }
             }
 
             function add(text: string) {
                 const li = document.createElement('li');
-                li.textContent = text;
+                li.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
                 log.appendChild(li);
             }
         </script>

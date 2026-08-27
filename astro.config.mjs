@@ -7,6 +7,17 @@ import fs from 'node:fs';
 // https://astro.build/config
 export default defineConfig({
   vite: {
+    define: {
+      global: 'globalThis',
+      'process.env': '{}',
+      'process.nextTick': '(cb, ...args) => Promise.resolve().then(() => cb(...args))',
+      'process.browser': 'true',
+    },
+    resolve: {
+      alias: {
+        events: 'events/events.js',
+      },
+    },
     plugins: [tailwindcss()],
     server: {
       https: fs.existsSync('.cert/cert.pem') ? {

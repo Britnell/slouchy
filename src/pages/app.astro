@@ -13,33 +13,59 @@
     </head>
     <body>
         <h1>app</h1>
-        <p id="uid">connecting…</p>
-        <p><a id="camlink" href="/camera" style="display:none">open camera</a></p>
         <ul id="log"></ul>
 
         <script>
-            const uidEl = document.getElementById('uid')!;
-            const camlink = document.getElementById('camlink') as HTMLAnchorElement;
+            import Peer from 'simple-peer';
+
             const log = document.getElementById('log')!;
-
+            const myId = crypto.randomUUID();
             const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+            let peer: InstanceType<typeof Peer> | null = null;
 
-            ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'connect' })));
+            ws.addEventListener('open', () => {
+                add('ws connected');
+                ws.send(JSON.stringify({ type: 'connect' }));
+            });
+
             ws.addEventListener('message', (e) => {
                 const data = JSON.parse(e.data);
+
                 if (data.type === 'registered') {
-                    uidEl.textContent = `uid: ${data.uid}`;
-                    camlink.href = `/camera?uid=${data.uid}`;
-                    camlink.style.display = 'inline';
-                    camlink.textContent = camlink.href;
-                } else {
-                    add(`← ${e.data}`);
+                    add(`registered → channel #${data.uid}`);
+                    add(`camera url: ${location.origin}/camera?uid=${data.uid}`);
+                    return;
+                }
+
+                if (data.type === 'signal') {
+                    if (data.from === myId) return; // own echo
+                    add(`← signal ${(data.signal as any).type}`);
+                    peer ??= makePeer();
+                    peer.signal(data.signal);
+                    return;
                 }
             });
 
+            function makePeer() {
+                const p = new Peer({ initiator: false });
+                p.on('signal', (s) => {
+                    add(`→ signal ${(s as any).type}`);
+                    ws.send(JSON.stringify({ type: 'signal', from: myId, signal: s }));
+                });
+                p.on('connect', () => {
+                    add('✔ webrtc connected');
+                    ws.send(JSON.stringify({ type: 'leave' }));
+                    add('ws signaling channel left');
+                });
+                p.on('data', (d) => add(`← ${d}`));
+                p.on('close', () => add('✖ webrtc closed'));
+                p.on('error', (e) => add(`✖ peer error: ${e.message}`));
+                return p;
+            }
+
             function add(text: string) {
                 const li = document.createElement('li');
-                li.textContent = text;
+                li.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
                 log.appendChild(li);
             }
         </script>
