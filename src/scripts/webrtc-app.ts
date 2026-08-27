@@ -1,5 +1,7 @@
 import Peer from 'simple-peer';
 
+const RECONNECT_DELAY_MS = 1000;
+
 export type AppEvents = {
     status: (text: string) => void;
     message: (msg: string) => void;
@@ -11,10 +13,15 @@ export class AppConnection {
     private peer: Peer | null = null;
     private myId = crypto.randomUUID();
     private intentionalClose = false;
+    private signalingDone = false; // ws no longer needed once rtc is up
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(private events: AppEvents) {}
 
     start() {
+        this.intentionalClose = false;
+        this.signalingDone = false;
+        this.clearReconnectTimer();
         const ws = new WebSocket(
             `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`
         );
@@ -43,12 +50,16 @@ export class AppConnection {
         });
 
         ws.addEventListener('close', () => {
-            if (!this.intentionalClose) this.events.status('✖ ws closed');
+            this.ws = null;
+            if (this.intentionalClose || this.signalingDone) return;
+            this.events.status('✖ ws closed, reconnecting...');
+            this.scheduleReconnect();
         });
     }
 
     stop() {
         this.intentionalClose = true;
+        this.clearReconnectTimer();
         this.peer?.destroy();
         this.peer = null;
         this.ws?.close();
@@ -57,6 +68,20 @@ export class AppConnection {
 
     send(msg: string) {
         this.peer?.send(msg);
+    }
+
+    private scheduleReconnect() {
+        this.clearReconnectTimer();
+        this.peer?.destroy();
+        this.peer = null;
+        this.reconnectTimer = setTimeout(() => this.start(), RECONNECT_DELAY_MS);
+    }
+
+    private clearReconnectTimer() {
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
     }
 
     private makePeer() {
@@ -68,10 +93,19 @@ export class AppConnection {
         });
         p.on('connect', () => {
             this.events.status('✔ rtc connected');
-            this.ws?.send(JSON.stringify({ type: 'leave' }));
+            // rtc is up — signaling no longer needed
+            this.signalingDone = true;
+            this.ws?.close();
+            this.ws = null;
         });
         p.on('data', (d) => this.events.message(d.toString()));
-        p.on('close', () => this.events.status('✖ webrtc closed'));
+        p.on('close', () => {
+            this.peer = null;
+            if (this.intentionalClose) return;
+            this.signalingDone = false;
+            this.events.status('✖ webrtc closed, reconnecting...');
+            this.scheduleReconnect();
+        });
         p.on('error', (e: any) => this.events.status(`✖ peer error: ${e.message}`));
 
         return p;
