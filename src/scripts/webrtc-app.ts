@@ -1,21 +1,18 @@
 import Peer from 'simple-peer';
 
-export type CameraEvents = {
+export type AppEvents = {
     status: (text: string) => void;
     message: (msg: string) => void;
-    connected?: () => void;
+    registered: (url: string) => void;
 };
 
-export class CameraConnection {
+export class AppConnection {
     private ws: WebSocket | null = null;
     private peer: Peer | null = null;
     private myId = crypto.randomUUID();
     private intentionalClose = false;
 
-    constructor(
-        private uid: string,
-        private events: CameraEvents
-    ) {}
+    constructor(private events: AppEvents) {}
 
     start() {
         const ws = new WebSocket(
@@ -25,22 +22,22 @@ export class CameraConnection {
 
         ws.addEventListener('open', () => {
             this.events.status('ws connected');
-            ws.send(JSON.stringify({ type: 'join', uid: this.uid }));
+            ws.send(JSON.stringify({ type: 'connect' }));
         });
 
         ws.addEventListener('message', (e) => {
             const data = JSON.parse(e.data);
 
-            if (data.type === 'joined') {
-                this.events.status(`joined channel #${data.uid}`);
-                this.peer = this.makePeer(); // only now — offer would be lost before ws is open
+            if (data.type === 'registered') {
+                this.events.registered(`${location.origin}/camera?uid=${data.uid}`);
                 return;
             }
 
             if (data.type === 'signal') {
                 if (data.from === this.myId) return; // own echo
                 this.events.status(`← signal ${data.signal.type}`);
-                this.peer?.signal(data.signal);
+                this.peer ??= this.makePeer();
+                this.peer.signal(data.signal);
                 return;
             }
         });
@@ -51,6 +48,7 @@ export class CameraConnection {
     }
 
     stop() {
+        this.intentionalClose = true;
         this.peer?.destroy();
         this.peer = null;
         this.ws?.close();
@@ -62,7 +60,7 @@ export class CameraConnection {
     }
 
     private makePeer() {
-        const p = new Peer({ initiator: true });
+        const p = new Peer({ initiator: false });
 
         p.on('signal', (s: any) => {
             this.events.status(`→ signal ${s.type}`);
@@ -70,10 +68,9 @@ export class CameraConnection {
         });
         p.on('connect', () => {
             this.events.status('✔ rtc connected');
-            this.events.connected?.();
             this.ws?.send(JSON.stringify({ type: 'leave' }));
         });
-        p.on('data', (d) => this.events.message(`← ${d.toString()}`));
+        p.on('data', (d) => this.events.message(d.toString()));
         p.on('close', () => this.events.status('✖ webrtc closed'));
         p.on('error', (e: any) => this.events.status(`✖ peer error: ${e.message}`));
 

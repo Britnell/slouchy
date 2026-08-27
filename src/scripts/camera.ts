@@ -12,7 +12,11 @@ if (!uid) {
 } else {
     const conn = new CameraConnection(uid, {
         status: setStatus,
-        message: () => {}
+        message: () => {},
+        connected: () => {
+            let count = 0;
+            setInterval(() => conn.send(`tick ${++count}`), 1000);
+        }
     });
     conn.start();
 }

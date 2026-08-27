@@ -13,61 +13,8 @@
     </head>
     <body>
         <h1>app</h1>
-        <ul id="log"></ul>
+        <div id="status"></div>
 
-        <script>
-            import Peer from 'simple-peer';
-
-            const log = document.getElementById('log')!;
-            const myId = crypto.randomUUID();
-            const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-            let peer: InstanceType<typeof Peer> | null = null;
-
-            ws.addEventListener('open', () => {
-                add('ws connected');
-                ws.send(JSON.stringify({ type: 'connect' }));
-            });
-
-            ws.addEventListener('message', (e) => {
-                const data = JSON.parse(e.data);
-
-                if (data.type === 'registered') {
-                    add(`registered → channel #${data.uid}`);
-                    add(`camera url: ${location.origin}/camera?uid=${data.uid}`);
-                    return;
-                }
-
-                if (data.type === 'signal') {
-                    if (data.from === myId) return; // own echo
-                    add(`← signal ${(data.signal as any).type}`);
-                    peer ??= makePeer();
-                    peer.signal(data.signal);
-                    return;
-                }
-            });
-
-            function makePeer() {
-                const p = new Peer({ initiator: false });
-                p.on('signal', (s) => {
-                    add(`→ signal ${(s as any).type}`);
-                    ws.send(JSON.stringify({ type: 'signal', from: myId, signal: s }));
-                });
-                p.on('connect', () => {
-                    add('✔ webrtc connected');
-                    ws.send(JSON.stringify({ type: 'leave' }));
-                    add('ws signaling channel left');
-                });
-                p.on('data', (d) => add(`← ${d}`));
-                p.on('close', () => add('✖ webrtc closed'));
-                p.on('error', (e) => add(`✖ peer error: ${e.message}`));
-                return p;
-            }
-
-            function add(text: string) {
-                const li = document.createElement('li');
-                li.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
-                log.appendChild(li);
-            }
-        </script>
+        <script src="../scripts/app.ts"></script>
     </body>
 </html>
