@@ -104,6 +104,7 @@ presence.render();
 let lastData: any = null;
 
 // --- posture / slouch ---
+import { deviations } from './posture';
 const SLOUCH_PERIOD = 3; // seconds in terrible before alerting
 const NOTE_LENGTH = 0.18;
 const ALERT_NOTES: [number, number, number][] = [
@@ -114,9 +115,13 @@ const ALERT_NOTES: [number, number, number][] = [
 const ALERT_VOLUME = 0.15;
 
 const postureEl = document.createElement('div');
+const tiltsEl = document.createElement('details');
+tiltsEl.append(Object.assign(document.createElement('summary'), { textContent: 'details' }));
+const tiltsBody = document.createElement('div');
+tiltsEl.append(tiltsBody);
 const correctBtn = document.createElement('button');
 correctBtn.textContent = 'correct posture';
-seatingEl.after(postureEl, correctBtn);
+seatingEl.after(postureEl, tiltsEl, correctBtn);
 
 const stored = JSON.parse(localStorage.getItem('correctPosture') ?? 'null');
 let correctTilts = stored?.tilts ?? { head: 0, neck: 0, back: 0 };
@@ -163,6 +168,7 @@ function updatePosture(data: any) {
         return;
     }
     const tilts = tiltsFromPoints(data);
+    const devs = deviations(tilts, correctTilts);
     const slouch = slouchMeter.value(tilts, correctTilts);
 
     let label: string;
@@ -170,7 +176,16 @@ function updatePosture(data: any) {
     else if (slouch < 10) label = 'ok';
     else if (slouch < 13) label = 'bad';
     else label = 'terrible';
-    postureEl.textContent = `posture: ${label}`;
+    postureEl.textContent = `posture: ${label} (${slouch.toFixed(1)}\u00b0)`;
+    const span = (text: string) => {
+        const el = document.createElement('span');
+        el.textContent = text;
+        return el;
+    };
+    tiltsBody.replaceChildren(
+        span(`neck: ${devs.neck.toFixed(1)}\u00b0`),
+        span(`back: ${devs.back.toFixed(1)}\u00b0`),
+    );
     console.debug('[posture]', { tilts, slouch, correctTilts, label, slouchStart, alerted });
 
     const now = performance.now();
