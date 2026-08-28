@@ -17,6 +17,15 @@ function setStatus(text: string) {
 
 let peerUp = false;
 let detectionStarted = false;
+let paused = false;
+
+const pauseBtn = document.createElement('button');
+pauseBtn.textContent = '⏸ pause detection';
+pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? '▶ resume detection' : '⏸ pause detection';
+});
+status.after(pauseBtn);
 
 if (!uid) {
     setStatus('✖ no uid — open this page via the url logged on /app');
@@ -60,7 +69,7 @@ async function startDetection(conn: CameraConnection) {
     let lastVideoTime = -1;
 
     (function loop() {
-        if (peerUp && video.currentTime !== lastVideoTime) {
+        if (peerUp && !paused && video.currentTime !== lastVideoTime) {
             lastVideoTime = video.currentTime;
             const result = landmarker.detectForVideo(video, performance.now());
             const raw = result?.landmarks?.[0];

@@ -111,6 +111,8 @@ presence.render();
 
 let lastData: any = null;
 
+let appPaused = false;
+
 // --- posture / slouch ---
 const SLOUCH_PERIOD = 3; // seconds in terrible before alerting
 const slouchMeter = new SlouchMeter();
@@ -122,6 +124,15 @@ tiltsEl.append(tiltsBody);
 const correctBtn = document.createElement('button');
 correctBtn.textContent = 'correct posture';
 seatingEl.after(postureEl, tiltsEl, correctBtn);
+
+const pauseBtn = document.createElement('button');
+pauseBtn.textContent = '⏸ pause';
+pauseBtn.addEventListener('click', () => {
+    appPaused = !appPaused;
+    pauseBtn.textContent = appPaused ? '▶ resume' : '⏸ pause';
+    if (appPaused) presence.reset(); // freeze session timer while paused
+});
+correctBtn.after(pauseBtn);
 
 const stored = JSON.parse(localStorage.getItem('correctPosture') ?? 'null');
 let correctAngles = stored?.angles ?? { head: 0, neck: 0, back: 0, neckBody: 0, neckHead: 0 };
@@ -186,6 +197,7 @@ correctBtn.addEventListener('click', () => {
 const conn = new AppConnection({
     status: setStatus,
     message: (msg) => {
+        if (appPaused) return; // ignore packets while paused
         try {
             const data = JSON.parse(msg);
             lastData = data;
