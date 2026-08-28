@@ -15,6 +15,9 @@ function setStatus(text: string) {
     status.textContent = text;
 }
 
+let peerUp = false;
+let detectionStarted = false;
+
 if (!uid) {
     setStatus('✖ no uid — open this page via the url logged on /app');
 } else {
@@ -22,13 +25,26 @@ if (!uid) {
         status: setStatus,
         message: () => {},
         connected: () => {
+            peerUp = true;
             setStatus('connected');
-            startDetection(conn).catch((err) =>
-                setStatus(`✖ ${err.message ?? err}`),
-            );
+            if (!detectionStarted) {
+                detectionStarted = true;
+                startDetection(conn).catch((err) =>
+                    setStatus(`✖ ${err.message ?? err}`),
+                );
+            }
+        },
+        disconnected: () => {
+            peerUp = false;
+            setStatus('✖ connection lost, waiting to reconnect...');
         },
     });
     conn.start();
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) video.pause();
+        else if (peerUp) video.play();
+    });
 }
 
 const r4 = (v) => Math.round(v * 10000) / 10000;
@@ -44,7 +60,7 @@ async function startDetection(conn: CameraConnection) {
     let lastVideoTime = -1;
 
     (function loop() {
-        if (video.currentTime !== lastVideoTime) {
+        if (peerUp && video.currentTime !== lastVideoTime) {
             lastVideoTime = video.currentTime;
             const result = landmarker.detectForVideo(video, performance.now());
             const raw = result?.landmarks?.[0];

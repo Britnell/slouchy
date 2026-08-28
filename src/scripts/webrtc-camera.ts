@@ -6,6 +6,7 @@ export type CameraEvents = {
     status: (text: string) => void;
     message: (msg: string) => void;
     connected?: () => void;
+    disconnected?: () => void;
 };
 
 export class CameraConnection {
@@ -71,12 +72,14 @@ export class CameraConnection {
 
     send(msg: string) {
         this.peer?.send(msg);
+        // console.log('[camera] sent', msg);
     }
 
     private scheduleReconnect() {
         this.clearReconnectTimer();
         this.peer?.destroy();
         this.peer = null;
+        this.events.disconnected?.();
         this.reconnectTimer = setTimeout(() => this.start(), RECONNECT_DELAY_MS);
     }
 
@@ -108,6 +111,7 @@ export class CameraConnection {
             if (this.intentionalClose) return;
             this.signalingDone = false;
             this.events.status('✖ webrtc closed, reconnecting...');
+            this.events.disconnected?.();
             this.scheduleReconnect();
         });
         p.on('error', (e: any) => this.events.status(`✖ peer error: ${e.message}`));

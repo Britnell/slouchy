@@ -98,7 +98,10 @@ export class AppConnection {
             this.ws?.close();
             this.ws = null;
         });
-        p.on('data', (d) => this.events.message(d.toString()));
+        p.on('data', (d) => {
+            // console.log('[app] received', d.toString());
+            this.events.message(d.toString());
+        });
         p.on('close', () => {
             this.peer = null;
             if (this.intentionalClose) return;
