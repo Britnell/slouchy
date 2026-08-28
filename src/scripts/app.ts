@@ -1,5 +1,5 @@
 import { AppConnection } from './webrtc-app';
-import { SlouchMeter } from './posture';
+import { SlouchMeter, angles, calibratePoints, deviations } from './posture';
 
 const status = document.getElementById('status')!;
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -104,7 +104,6 @@ presence.render();
 let lastData: any = null;
 
 // --- posture / slouch ---
-import { deviations } from './posture';
 const SLOUCH_PERIOD = 3; // seconds in terrible before alerting
 const NOTE_LENGTH = 0.18;
 const ALERT_NOTES: [number, number, number][] = [
@@ -124,25 +123,11 @@ correctBtn.textContent = 'correct posture';
 seatingEl.after(postureEl, tiltsEl, correctBtn);
 
 const stored = JSON.parse(localStorage.getItem('correctPosture') ?? 'null');
-let correctTilts = stored?.tilts ?? { head: 0, neck: 0, back: 0 };
+let correctAngles = stored?.angles ?? { head: 0, neck: 0, back: 0, neckBody: 0, neckHead: 0 };
 
 const slouchMeter = new SlouchMeter();
 let slouchStart: number | null = null;
 let alerted = false;
-
-// tilts from points (same math as computeTilts, but from already-midpointed points)
-function tiltsFromPoints(p: any) {
-    const vsHoriz = (p1: any, p2: any) =>
-        (Math.atan2(-(p2.y - p1.y), Math.abs(p2.x - p1.x)) * 180) / Math.PI;
-    const vsVert = (p1: any, p2: any) =>
-        (Math.atan2(p2.x - p1.x, Math.abs(p2.y - p1.y)) * 180) / Math.PI;
-    const min0 = (a: number) => Math.max(0, a);
-    return {
-        head: min0(-vsHoriz(p.ear, p.eye)),
-        neck: min0(vsVert(p.ear, p.shoulder)),
-        back: min0(vsVert(p.shoulder, p.hip))
-    };
-}
 
 function beep() {
     const audio = new AudioContext();
@@ -167,9 +152,10 @@ function updatePosture(data: any) {
         console.debug('[posture] missing points', data);
         return;
     }
-    const tilts = tiltsFromPoints(data);
-    const devs = deviations(tilts, correctTilts);
-    const slouch = slouchMeter.value(tilts, correctTilts);
+    // data = smoothed midpoints from camera
+    const ang = angles(data);
+    const devs = deviations(ang, correctAngles);
+    const slouch = slouchMeter.value(ang, correctAngles);
 
     let label: string;
     if (slouch < 5) label = 'good';
@@ -182,11 +168,14 @@ function updatePosture(data: any) {
         el.textContent = text;
         return el;
     };
+    // neckBody is inverted: it shrinks when slouching
+    const neckBodyDev = Math.max(0, correctAngles.neckBody - ang.neckBody);
     tiltsBody.replaceChildren(
         span(`neck: ${devs.neck.toFixed(1)}\u00b0`),
+        span(`neckBody: ${neckBodyDev.toFixed(1)}\u00b0`),
         span(`back: ${devs.back.toFixed(1)}\u00b0`),
     );
-    console.debug('[posture]', { tilts, slouch, correctTilts, label, slouchStart, alerted });
+    console.debug('[posture]', { ang, slouch, correctAngles, devs, label, slouchStart, alerted });
 
     const now = performance.now();
     if (slouch >= 13) {
@@ -207,8 +196,8 @@ correctBtn.addEventListener('click', () => {
     // calibrate from the last frame drawn
     const data = lastData;
     if (!data?.ear || !data?.eye || !data?.shoulder || !data?.hip) return;
-    correctTilts = tiltsFromPoints(data);
-    localStorage.setItem('correctPosture', JSON.stringify({ tilts: correctTilts }));
+    correctAngles = calibratePoints(data);
+    localStorage.setItem('correctPosture', JSON.stringify({ angles: correctAngles }));
     slouchMeter.reset();
 });
 

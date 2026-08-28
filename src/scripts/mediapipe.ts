@@ -1,5 +1,5 @@
 import { MODELS, createLandmarker, LandmarkSmoother } from "./poseLandmarker";
-import { computeTilts, computeIntrinsic, deviations, calibrate, SlouchMeter } from "./posture";
+import { midpoints, angles, calibratePoints, deviations, SlouchMeter } from "./posture";
 import { beep } from "./tone";
 
 import { drawFrame, fitToVideo } from "./canvas";
@@ -20,8 +20,8 @@ let landmarker = null;
 let running = false;
 let lastVideoTime = -1;
 let result = null;
-let lastTilts = null;
-let lastIntrinsic = null;
+let lastAngles = null;
+let lastPoints = null;
 
 const smoother = new LandmarkSmoother();
 const slouchMeter = new SlouchMeter();
@@ -39,8 +39,7 @@ function clearError() {
 }
 const correctBtn = document.getElementById("correct");
 const stored = JSON.parse(localStorage.getItem("correctPosture") ?? "null");
-let correctTilts = stored?.tilts ?? { head: 0, neck: 0, back: 0 };
-let correctIntrinsic = stored?.intrinsic ?? { neckHead: 0, neckBody: 0 };
+let correctAngles = stored?.angles ?? { head: 0, neck: 0, back: 0, neckBody: 0, neckHead: 0 };
 
 
 function loop() {
@@ -59,10 +58,10 @@ function displayVideoResult(result) {
     if (!result?.landmarks) return;
     for (const rawLandmarks of result.landmarks) {
         const landmarks = smoother.smooth(rawLandmarks);
-        const { points, tilts } = computeTilts(landmarks);
+        const points = midpoints(landmarks);
         drawFrame(canvasCtx, canvas, points, landmarks);
-        lastTilts = tilts;
-        lastIntrinsic = computeIntrinsic(points);
+        lastPoints = points;
+        lastAngles = angles(points);
     }
 }
 
@@ -98,11 +97,10 @@ function updateSlouch(slouch, now = performance.now()) {
 }
 
 function updateReadout() {
-    if (!lastTilts) return;
-    const tilts = deviations(lastTilts, correctTilts);
-    // neckBody is an intrinsic angle: it *shrinks* when slouching, so deviation is inverted
-    const neckBodyDev = Math.max(0, correctIntrinsic.neckBody - lastIntrinsic.neckBody);
-    const slouch = slouchMeter.value(lastTilts, correctTilts, neckBodyDev);
+    if (!lastAngles) return;
+    const devs = deviations(lastAngles, correctAngles);
+    const neckBodyDev = Math.max(0, correctAngles.neckBody - lastAngles.neckBody);
+    const slouch = slouchMeter.value(lastAngles, correctAngles);
     updateSlouch(slouch);
     const span = (text) => {
         const el = document.createElement("span");
@@ -111,10 +109,10 @@ function updateReadout() {
     };
     tiltsEl.replaceChildren(
         span(`slouch: ${slouch.toFixed(1)}\u00b0${slouching ? " SLOUCHING" : ""}`),
-        ...Object.entries(tilts).map(([k, v]) => span(`${k}: ${v.toFixed(1)}\u00b0`)),
+        ...Object.entries(devs).map(([k, v]) => span(`${k}: ${v.toFixed(1)}\u00b0`)),
     );
     intrinsicEl.replaceChildren(
-        span(`headNeck: ${(lastIntrinsic.neckHead - correctIntrinsic.neckHead).toFixed(1)}\u00b0`),
+        span(`headNeck: ${(lastAngles.neckHead - correctAngles.neckHead).toFixed(1)}\u00b0`),
         span(`neckBody: ${neckBodyDev.toFixed(1)}\u00b0`),
     );
 }
@@ -122,12 +120,11 @@ function updateReadout() {
 // --------------------------------------
 
 correctBtn?.addEventListener("click", () => {
-    if (lastTilts) {
-        correctTilts = calibrate(lastTilts);
-        correctIntrinsic = { ...lastIntrinsic };
+    if (lastAngles) {
+        correctAngles = { ...lastAngles };
         localStorage.setItem(
             "correctPosture",
-            JSON.stringify({ tilts: correctTilts, intrinsic: correctIntrinsic }),
+            JSON.stringify({ angles: correctAngles }),
         );
     }
 });

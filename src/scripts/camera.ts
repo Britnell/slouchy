@@ -1,5 +1,5 @@
 import { createLandmarker, LandmarkSmoother } from './poseLandmarker';
-import { computeTilts } from './posture';
+import { midpoints } from './posture';
 import { drawFrame, fitToVideo } from './canvas';
 import { CameraConnection } from './webrtc-camera';
 
@@ -66,7 +66,7 @@ async function startDetection(conn: CameraConnection) {
             const raw = result?.landmarks?.[0];
             if (raw) {
                 const landmarks = smoother.smooth(raw);
-                const { points } = computeTilts(landmarks);
+                const points = midpoints(landmarks);
                 drawFrame(canvasCtx, canvas, points, landmarks);
                 conn.send(
                     JSON.stringify({
