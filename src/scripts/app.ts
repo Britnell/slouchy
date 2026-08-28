@@ -1,5 +1,6 @@
 import { AppConnection } from './webrtc-app';
 import { SlouchMeter, angles, calibratePoints, deviations } from './posture';
+import { speak, beep, chord } from './tone';
 
 const status = document.getElementById('status')!;
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -16,6 +17,11 @@ const COLORS: Record<string, string> = {
     eye: '#60a5fa',
     nose: '#e879f9'
 };
+
+
+const PRESENCE_TIMEOUT_MS = 10000; // no frame for this long = gone
+const BREAK_AFTER_MS = 1 * 60 * 1000;
+
 
 function drawPoints(data: any) {
     // points are normalized 0..1
@@ -41,9 +47,6 @@ function hasPosture(data: any): boolean {
 
 // --- presence / pomodoro ---
 const seatingEl = document.getElementById('seating')!;
-
-const PRESENCE_TIMEOUT_MS = 15000; // no frame for this long = gone
-const BREAK_AFTER_MS = 45 * 1000; // DEBUG: normally 45 * 60 * 1000
 
 const presence = {
     lastSeen: 0 as number | null,
@@ -75,6 +78,7 @@ const presence = {
         if (this.timer) clearInterval(this.timer);
         this.timer = null;
         this.sessionStart = null;
+        this.breakAnnounced = false;
         this.lastSeen = null;
         this.render();
     },
@@ -90,6 +94,10 @@ const presence = {
         }
         const elapsed = Date.now() - this.sessionStart;
         if (elapsed >= BREAK_AFTER_MS) {
+            if (!this.breakAnnounced) {
+                this.breakAnnounced = true;
+                chord(440);
+            }
             seatingEl.textContent = 'get up 🚶';
             return;
         }
@@ -105,14 +113,7 @@ let lastData: any = null;
 
 // --- posture / slouch ---
 const SLOUCH_PERIOD = 3; // seconds in terrible before alerting
-const NOTE_LENGTH = 0.18;
-const ALERT_NOTES: [number, number, number][] = [
-    [0.15, 660, NOTE_LENGTH],
-    [0.35, 520, NOTE_LENGTH],
-    [0.75, 520, NOTE_LENGTH * 5]
-];
-const ALERT_VOLUME = 0.15;
-
+const slouchMeter = new SlouchMeter();
 const postureEl = document.createElement('div');
 const tiltsEl = document.createElement('details');
 tiltsEl.append(Object.assign(document.createElement('summary'), { textContent: 'details' }));
@@ -124,27 +125,8 @@ seatingEl.after(postureEl, tiltsEl, correctBtn);
 
 const stored = JSON.parse(localStorage.getItem('correctPosture') ?? 'null');
 let correctAngles = stored?.angles ?? { head: 0, neck: 0, back: 0, neckBody: 0, neckHead: 0 };
-
-const slouchMeter = new SlouchMeter();
 let slouchStart: number | null = null;
 let alerted = false;
-
-function beep() {
-    const audio = new AudioContext();
-    if (audio.state === 'suspended') audio.resume();
-    const now = audio.currentTime + 0.1;
-    for (const [t, freq, len] of ALERT_NOTES) {
-        const osc = audio.createOscillator();
-        osc.frequency.value = freq;
-        const gain = audio.createGain();
-        gain.gain.setValueAtTime(ALERT_VOLUME, now + t);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + t + len);
-        osc.connect(gain).connect(audio.destination);
-        osc.start(now + t);
-        osc.stop(now + t + len);
-    }
-    setTimeout(() => audio.close(), 2000);
-}
 
 function updatePosture(data: any) {
     if (!data.ear || !data.eye || !data.shoulder || !data.hip) {

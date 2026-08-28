@@ -6,20 +6,51 @@ const ALERT_NOTES = [
 ]; // [start offset s, freq Hz, length s]
 const ALERT_VOLUME = 0.15;
 
-export function beep() {
+/** notes: [start offset s, freq Hz, length s][] */
+export function play(notes: [number, number, number][], volume = ALERT_VOLUME) {
     const ctx = new AudioContext();
     if (ctx.state === "suspended") ctx.resume();
     const now = ctx.currentTime + 0.1; // small delay so BT doesn't cut off start
-    // blip-blop: high note then two repeated lower ones
-    ALERT_NOTES.forEach(([t, freq, len]) => {
+    notes.forEach(([t, freq, len]) => {
         const osc = ctx.createOscillator();
         osc.frequency.value = freq;
         const gain = ctx.createGain();
-        gain.gain.setValueAtTime(ALERT_VOLUME, now + t);
+        gain.gain.setValueAtTime(volume, now + t);
         gain.gain.exponentialRampToValueAtTime(0.001, now + t + len);
         osc.connect(gain).connect(ctx.destination);
         osc.start(now + t);
         osc.stop(now + t + len);
     });
     setTimeout(() => ctx.close(), 2000);
+}
+
+// semitone offsets of a minor 7 chord: root, minor 3rd, 5th, minor 7th
+const CHORD_SEMITONES = [0, 3, 7, 10];
+
+/** notes ascending: root, m3, 5, m7 */
+export function chord(root: number, gap = 0.12, len = NOTE_LENGTH) {
+    play(
+        CHORD_SEMITONES.map(
+            (semi, i) => [i * gap, root * Math.pow(2, semi / 12), len] as [number, number, number]
+        )
+    );
+}
+
+export function beep() {
+    // blip-blop: high note then two repeated lower ones
+    play(ALERT_NOTES);
+}
+
+
+// voices load async in most browsers; force them to load
+speechSynthesis.getVoices();
+speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+
+export function speak(text: string) {
+  const u = new SpeechSynthesisUtterance(text);
+  const voices = speechSynthesis.getVoices()
+  console.log(voices)
+    const goodnews = voices.find((v) => v.name.toLowerCase() === 'goodnews');
+    if (goodnews) u.voice = goodnews;
+    speechSynthesis.speak(u);
 }
