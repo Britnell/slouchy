@@ -100,7 +100,9 @@ function updateSlouch(slouch, now = performance.now()) {
 function updateReadout() {
     if (!lastTilts) return;
     const tilts = deviations(lastTilts, correctTilts);
-    const slouch = slouchMeter.value(lastTilts, correctTilts);
+    // neckBody is an intrinsic angle: it *shrinks* when slouching, so deviation is inverted
+    const neckBodyDev = Math.max(0, correctIntrinsic.neckBody - lastIntrinsic.neckBody);
+    const slouch = slouchMeter.value(lastTilts, correctTilts, neckBodyDev);
     updateSlouch(slouch);
     const span = (text) => {
         const el = document.createElement("span");
@@ -113,7 +115,7 @@ function updateReadout() {
     );
     intrinsicEl.replaceChildren(
         span(`headNeck: ${(lastIntrinsic.neckHead - correctIntrinsic.neckHead).toFixed(1)}\u00b0`),
-        span(`neckBody: ${(lastIntrinsic.neckBody - correctIntrinsic.neckBody).toFixed(1)}\u00b0`),
+        span(`neckBody: ${neckBodyDev.toFixed(1)}\u00b0`),
     );
 }
 
