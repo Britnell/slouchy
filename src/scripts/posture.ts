@@ -21,7 +21,10 @@ export function midpoints(l) {
     };
 }
 
-// step 2: all angles from midpoints
+// step 2: all angles from midpoints, signed and unclamped
+// (+ = forward/down, - = back). clamping to >= 0 happens only after diffing
+// vs calibrated posture (deviations()), so 'better than good' (leaning back)
+// reads as 0 deviation — never at the source, that loses the negative range.
 // absolute tilts vs axes, normalized to [-90, 90]:
 //   head: vs horizontal (+ = eye/nose above ear, - = below)
 //   neck/back: vs vertical (+ = top leans forward, - = back)
@@ -35,7 +38,6 @@ export function angles(p) {
         (Math.atan2(-dy(p1, p2), Math.abs(dx(p1, p2))) * 180) / Math.PI;
     const vsVert = (p1, p2) =>
         (Math.atan2(dx(p1, p2), Math.abs(dy(p1, p2))) * 180) / Math.PI;
-    const min0 = (a) => Math.max(0, a);
     const angleBetween = (p1, p2, p3) => {
         const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
         const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
@@ -44,9 +46,9 @@ export function angles(p) {
         return (Math.acos(Math.min(1, Math.max(-1, dot / m))) * 180) / Math.PI;
     };
     return {
-        head: min0(-vsHoriz(p.ear, p.eye)),
-        neck: min0(vsVert(p.ear, p.shoulder)),
-        back: min0(vsVert(p.shoulder, p.hip)),
+        head: -vsHoriz(p.ear, p.eye),
+        neck: vsVert(p.ear, p.shoulder),
+        back: vsVert(p.shoulder, p.hip),
         neckBody: angleBetween(p.hip, p.shoulder, p.ear),
         neckHead: angleBetween(p.shoulder, p.ear, p.eye),
     };

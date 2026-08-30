@@ -1,5 +1,6 @@
 import { AppConnection } from './webrtc-app';
 import { SlouchMeter, angles, deviations, drop } from './posture';
+import { PostureLogger } from './logger';
 import { speak, beep, chord } from './tone';
 
 const status = document.getElementById('status')!;
@@ -134,6 +135,17 @@ pauseBtn.addEventListener('click', () => {
 });
 correctBtn.after(pauseBtn);
 
+// --- research logger (see detection.md) ---
+const LOG_ENABLED = false;
+const postureLog = new PostureLogger();
+if (LOG_ENABLED) {
+    (window as any).postureLogDownload = () => postureLog.download();
+    const logBtn = document.createElement('button');
+    logBtn.textContent = '⬇ csv';
+    logBtn.addEventListener('click', () => postureLog.download());
+    pauseBtn.after(logBtn);
+}
+
 // calibration = just the point positions; angles are derived from them
 let correctPoints: Record<string, { x: number; y: number }> | null =
     JSON.parse(localStorage.getItem('correctPosture') ?? 'null')?.points ?? null;
@@ -164,6 +176,7 @@ function updatePosture(data: any) {
     }
     // data = smoothed midpoints from camera
     const ang = angles(data);
+    if (LOG_ENABLED) postureLog.log(data, ang);
     const devs = deviations(ang, correctAngles);
     const slouch = slouchMeter.value(ang, correctAngles, data, correctPoints);
 
