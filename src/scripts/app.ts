@@ -1,5 +1,5 @@
 import { AppConnection } from './webrtc-app';
-import { SlouchMeter, angles, calibratePoints, deviations } from './posture';
+import { SlouchMeter, angles, deviations } from './posture';
 import { speak, beep, chord } from './tone';
 
 const status = document.getElementById('status')!;
@@ -20,7 +20,7 @@ const COLORS: Record<string, string> = {
 
 
 const PRESENCE_TIMEOUT_MS = 10000; // no frame for this long = gone
-const BREAK_AFTER_MS = 1 * 60 * 1000;
+const BREAK_AFTER_MS = 30 * 60 * 1000;
 
 
 function drawPoints(data: any) {
@@ -134,10 +134,27 @@ pauseBtn.addEventListener('click', () => {
 });
 correctBtn.after(pauseBtn);
 
-const stored = JSON.parse(localStorage.getItem('correctPosture') ?? 'null');
-let correctAngles = stored?.angles ?? { head: 0, neck: 0, back: 0, neckBody: 0, neckHead: 0 };
+// calibration = just the point positions; angles are derived from them
+let correctPoints: Record<string, { x: number; y: number }> | null =
+    JSON.parse(localStorage.getItem('correctPosture') ?? 'null')?.points ?? null;
+let correctAngles = correctPoints ? angles(correctPoints) : { head: 0, neck: 0, back: 0, neckBody: 0, neckHead: 0 };
 let slouchStart: number | null = null;
 let alerted = false;
+
+// sum of per-point distances from calibrated position; above this the frame is
+// a fake detection / background person / user stood up -> ignore it
+const POSITION_MAX_DRIFT = 1.0;
+
+function driftSum(data: any): number | null {
+    if (!correctPoints) return null;
+    let sum = 0;
+    for (const [k, a] of Object.entries<any>(correctPoints)) {
+        const b = data[k];
+        if (!b) return null;
+        sum += Math.hypot(a.x - b.x, a.y - b.y);
+    }
+    return sum;
+}
 
 function updatePosture(data: any) {
     if (!data.ear || !data.eye || !data.shoulder || !data.hip) {
@@ -186,11 +203,13 @@ function updatePosture(data: any) {
 }
 
 correctBtn.addEventListener('click', () => {
-    // calibrate from the last frame drawn
+    // calibrate from the last frame drawn (kept fresh even for out-of-position frames,
+    // so a stale calibration after moving the camera can always be replaced)
     const data = lastData;
     if (!data?.ear || !data?.eye || !data?.shoulder || !data?.hip) return;
-    correctAngles = calibratePoints(data);
-    localStorage.setItem('correctPosture', JSON.stringify({ angles: correctAngles }));
+    correctPoints = data;
+    correctAngles = angles(data);
+    localStorage.setItem('correctPosture', JSON.stringify({ points: correctPoints }));
     slouchMeter.reset();
 });
 
@@ -200,9 +219,18 @@ const conn = new AppConnection({
         if (appPaused) return; // ignore packets while paused
         try {
             const data = JSON.parse(msg);
-            lastData = data;
+            lastData = data; // always keep latest frame so calibration stays possible
             drawPoints(data);
-            presence.onFrame(hasPosture(data));
+            const drift = driftSum(data);
+            const inPosition = drift === null || drift <= POSITION_MAX_DRIFT;
+            presence.onFrame(inPosition && hasPosture(data));
+            if (!inPosition) {
+                postureEl.textContent = 'posture: not at desk';
+                slouchMeter.reset();
+                slouchStart = null;
+                alerted = false;
+                return;
+            }
             updatePosture(data);
         } catch {
             // ignore non-json

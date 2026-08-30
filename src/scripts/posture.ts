@@ -58,11 +58,6 @@ export function measure(l) {
     return { points, angles: angles(points) };
 }
 
-// calibration: correct posture angles to diff against
-// calibration: correct posture angles, from midpoints or landmarks
-export const calibratePoints = (points) => angles(points);
-export const calibrate = (l) => calibratePoints(midpoints(l));
-
 // step 4: deviations from calibrated correct posture, never negative
 export function deviations(angles, correct) {
     return Object.fromEntries(
