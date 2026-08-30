@@ -58,6 +58,16 @@ export function measure(l) {
     return { points, angles: angles(points) };
 }
 
+// 'drop': how far the upper body has dropped vs the calibrated correct posture:
+// the y-drops of ear and shoulder added together, no average. Slouching with a
+// rounded back makes the whole upper body sit lower in front of the camera
+// (y grows in normalized coords). correctPoints may be null -> returns null.
+export function drop(points, correctPoints) {
+  if (!correctPoints) return null;
+  const sum = points.ear.y - correctPoints.ear.y + points.shoulder.y - correctPoints.shoulder.y;
+    return Math.max(0,sum / 2);
+}
+
 // step 4: deviations from calibrated correct posture, never negative
 export function deviations(angles, correct) {
     return Object.fromEntries(

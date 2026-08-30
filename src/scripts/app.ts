@@ -1,5 +1,5 @@
 import { AppConnection } from './webrtc-app';
-import { SlouchMeter, angles, deviations } from './posture';
+import { SlouchMeter, angles, deviations, drop } from './posture';
 import { speak, beep, chord } from './tone';
 
 const status = document.getElementById('status')!;
@@ -180,10 +180,12 @@ function updatePosture(data: any) {
     };
     // neckBody is inverted: it shrinks when slouching
     const neckBodyDev = Math.max(0, correctAngles.neckBody - ang.neckBody);
+    const dropVal = drop(data, correctPoints);
     tiltsBody.replaceChildren(
         span(`neck: ${devs.neck.toFixed(1)}\u00b0`),
         span(`neckBody: ${neckBodyDev.toFixed(1)}\u00b0`),
         span(`back: ${devs.back.toFixed(1)}\u00b0`),
+        ...(dropVal === null ? [] : [span(`drop: ${(dropVal * 100).toFixed(1)} h`)]),
     );
     console.debug('[posture]', { ang, slouch, correctAngles, devs, label, slouchStart, alerted });
 

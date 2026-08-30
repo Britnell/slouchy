@@ -1,5 +1,5 @@
 import { MODELS, createLandmarker, LandmarkSmoother } from "./poseLandmarker";
-import { midpoints, angles, calibratePoints, deviations, SlouchMeter } from "./posture";
+import { midpoints, angles, deviations, SlouchMeter, drop } from "./posture";
 import { beep } from "./tone";
 
 import { drawFrame, fitToVideo } from "./canvas";
@@ -38,8 +38,10 @@ function clearError() {
     errorEl.classList.add("hidden");
 }
 const correctBtn = document.getElementById("correct");
+// calibration = just the point positions; angles are derived from them
 const stored = JSON.parse(localStorage.getItem("correctPosture") ?? "null");
-let correctAngles = stored?.angles ?? { head: 0, neck: 0, back: 0, neckBody: 0, neckHead: 0 };
+let correctPoints = stored?.points ?? null;
+let correctAngles = correctPoints ? angles(correctPoints) : { head: 0, neck: 0, back: 0, neckBody: 0, neckHead: 0 };
 
 
 function loop() {
@@ -111,21 +113,21 @@ function updateReadout() {
         span(`slouch: ${slouch.toFixed(1)}\u00b0${slouching ? " SLOUCHING" : ""}`),
         ...Object.entries(devs).map(([k, v]) => span(`${k}: ${v.toFixed(1)}\u00b0`)),
     );
+    const dropVal = drop(lastPoints, correctPoints);
     intrinsicEl.replaceChildren(
         span(`headNeck: ${(lastAngles.neckHead - correctAngles.neckHead).toFixed(1)}\u00b0`),
         span(`neckBody: ${neckBodyDev.toFixed(1)}\u00b0`),
+        ...(dropVal === null ? [] : [span(`drop: ${(dropVal * 100).toFixed(1)} h`)]),
     );
 }
 
 // --------------------------------------
 
 correctBtn?.addEventListener("click", () => {
-    if (lastAngles) {
-        correctAngles = { ...lastAngles };
-        localStorage.setItem(
-            "correctPosture",
-            JSON.stringify({ angles: correctAngles }),
-        );
+    if (lastAngles && lastPoints) {
+        correctPoints = { ...lastPoints };
+        correctAngles = angles(correctPoints);
+        localStorage.setItem("correctPosture", JSON.stringify({ points: correctPoints }));
     }
 });
 
