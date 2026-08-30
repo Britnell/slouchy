@@ -102,7 +102,7 @@ function updateReadout() {
     if (!lastAngles) return;
     const devs = deviations(lastAngles, correctAngles);
     const neckBodyDev = Math.max(0, correctAngles.neckBody - lastAngles.neckBody);
-    const slouch = slouchMeter.value(lastAngles, correctAngles);
+    const slouch = slouchMeter.value(lastAngles, correctAngles, lastPoints, correctPoints);
     updateSlouch(slouch);
     const span = (text) => {
         const el = document.createElement("span");

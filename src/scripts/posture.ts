@@ -79,17 +79,19 @@ export function deviations(angles, correct) {
 }
 
 const SLOUCH_SMOOTHING = 0.05;
+const DROP_WEIGHT = 100; // deg of slouch per unit of normalized y-drop
 
 // step 5: single slouch value, smoothed over time
 export class SlouchMeter {
     smoothed = null;
 
-    // picks which deviations feed the score: neck tilt + neckBody
+    // picks which deviations feed the score: neck tilt + neckBody + drop
     // neckBody is an intrinsic angle: it *shrinks* when slouching, so its deviation is inverted
-    value(ang, correct) {
+    value(ang, correct, points, correctPoints) {
         const devs = deviations(ang, correct);
         const neckBodyDev = Math.max(0, correct.neckBody - ang.neckBody);
-        const raw = devs.neck + 1.0 * neckBodyDev;
+        const dropVal = drop(points, correctPoints) ?? 0;
+        const raw = devs.neck + 1.0 * neckBodyDev + DROP_WEIGHT * dropVal;
         const slouch = Math.max(0, raw);
         this.smoothed =
             this.smoothed === null

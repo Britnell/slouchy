@@ -165,7 +165,7 @@ function updatePosture(data: any) {
     // data = smoothed midpoints from camera
     const ang = angles(data);
     const devs = deviations(ang, correctAngles);
-    const slouch = slouchMeter.value(ang, correctAngles);
+    const slouch = slouchMeter.value(ang, correctAngles, data, correctPoints);
 
     let label: string;
     if (slouch < 5) label = 'good';
