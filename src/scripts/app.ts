@@ -1,5 +1,7 @@
 import { AppConnection } from './webrtc-app';
 import { SlouchMeter, angles, deviations, drop } from './posture';
+import { AdaptiveMeter } from './adaptive';
+import { DriftMeter } from './drift';
 import { PostureLogger } from './logger';
 import { speak, beep, chord } from './tone';
 
@@ -116,15 +118,87 @@ let appPaused = false;
 
 // --- posture / slouch ---
 const SLOUCH_PERIOD = 3; // seconds in terrible before alerting
+const WARMUP_S = 60; // adaptive meter warm-up, seconds
 const slouchMeter = new SlouchMeter();
 const postureEl = document.createElement('div');
-const tiltsEl = document.createElement('details');
-tiltsEl.append(Object.assign(document.createElement('summary'), { textContent: 'details' }));
+const tiltsEl = document.createElement('p');
+// tiltsEl.append(Object.assign(document.createElement('summary'), { textContent: 'details' }));
 const tiltsBody = document.createElement('div');
-tiltsEl.append(tiltsBody);
+// absolute values table: 1 header row + 1 value row
+const ABS_LABELS = ['head', 'neck', 'back', 'neckHead', 'neckBody', 'height'] as const;
+const absTable = document.createElement('table');
+const absHeadRow = document.createElement('tr');
+const absValRow = document.createElement('tr');
+const absCells = ABS_LABELS.map((name) => {
+    const th = document.createElement('th');
+    th.textContent = name;
+    absHeadRow.append(th);
+    const td = document.createElement('td');
+    absValRow.append(td);
+    return td;
+});
+absTable.append(absHeadRow, absValRow);
+tiltsEl.append(absTable, tiltsBody);
 const correctBtn = document.createElement('button');
 correctBtn.textContent = 'correct posture';
 seatingEl.after(postureEl, tiltsEl, correctBtn);
+
+// --- calibration-free detection v1 (analysis/detection.md) ---
+const adaptiveMeter = new AdaptiveMeter();
+const adaptiveEl = document.createElement('p');
+tiltsEl.after(adaptiveEl);
+const ADAPTIVE_THRESHOLD = 13; // degrees-like, same scale as calibrated slouch
+let adaptiveStart: number | null = null;
+let adaptiveAlerted = false;
+
+function updateAdaptive(data: any) {
+    if (!data.ear || !data.eye || !data.shoulder || !data.hip) return;
+    const adv = adaptiveMeter.value(angles(data), data);
+    if (!adv.ready) {
+        adaptiveEl.textContent = `adaptive: warming up ${Math.floor(adv.ageMs / 1000)}/${WARMUP_S}s`;
+        adaptiveEl.style.color = '';
+        return;
+    }
+    const r = adv.residuals;
+    const dropRes = (r.earY + r.shoulderY) * 100; // h units, like the drop display
+    adaptiveEl.textContent =
+        `adaptive: ${adv.fused.toFixed(1)}\u00b0 | ` +
+        `neck ${r.neck.toFixed(1)}\u00b0 ` +
+        `neckBody ${r.neckBody.toFixed(1)}\u00b0 ` +
+        `drop ${dropRes.toFixed(1)}h`;
+    console.debug('[adaptive]', adv);
+
+    const now = performance.now();
+    if (adv.fused >= ADAPTIVE_THRESHOLD) {
+        if (adaptiveStart === null) adaptiveStart = now;
+        if (!adaptiveAlerted && now - adaptiveStart >= SLOUCH_PERIOD * 1000) {
+            adaptiveAlerted = true;
+            console.warn('[adaptive] TRIGGER:', adv.fused.toFixed(1), 'for', (now - adaptiveStart) / 1000, 's');
+        }
+        adaptiveEl.style.color = adaptiveAlerted ? 'red' : 'orange';
+    } else {
+        adaptiveStart = null;
+        adaptiveAlerted = false;
+        adaptiveEl.style.color = '';
+    }
+}
+
+// --- drift detection v2 sketch: long-term vs short-term low-pass (detection.md) ---
+const driftMeter = new DriftMeter();
+const driftEl = document.createElement('p');
+adaptiveEl.after(driftEl);
+
+function updateDrift(data: any) {
+    if (!data.ear || !data.eye || !data.shoulder || !data.hip) return;
+    const d = driftMeter.value(angles(data), data);
+    const f = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
+    const absSum = d.abs.neck + d.abs.neckBody + 100 * d.abs.drop;
+    driftEl.textContent =
+        `abs: neck ${d.abs.neck.toFixed(1)}\u00b0 neckBody ${d.abs.neckBody.toFixed(1)}\u00b0 ` +
+        `drop ${(d.abs.drop * 100).toFixed(1)}h \u03a3 ${absSum.toFixed(1)} | ` +
+        `diff: ${f(d.fused)}\u00b0`;
+    console.debug('[drift]', d);
+}
 
 const pauseBtn = document.createElement('button');
 pauseBtn.textContent = '⏸ pause';
@@ -137,6 +211,7 @@ correctBtn.after(pauseBtn);
 
 // --- research logger (see detection.md) ---
 const LOG_ENABLED = false;
+const LOG_DISTANCE = false; // log per-frame drift from calibrated position
 const postureLog = new PostureLogger();
 if (LOG_ENABLED) {
     (window as any).postureLogDownload = () => postureLog.download();
@@ -153,10 +228,8 @@ let correctAngles = correctPoints ? angles(correctPoints) : { head: 0, neck: 0, 
 let slouchStart: number | null = null;
 let alerted = false;
 
-// sum of per-point distances from calibrated position; above this the frame is
-// a fake detection / background person / user stood up -> ignore it
-const POSITION_MAX_DRIFT = 1.0;
-
+// sum of per-point distances from calibrated position (no longer gates frames;
+// logged when LOG_DISTANCE is on)
 function driftSum(data: any): number | null {
     if (!correctPoints) return null;
     let sum = 0;
@@ -191,10 +264,22 @@ function updatePosture(data: any) {
         el.textContent = text;
         return el;
     };
+    // absolute values: 5 angles + upper-body height (mean ear/shoulder y, h units)
+    const heightH = ((data.ear.y + data.shoulder.y) / 2) * 100;
+    const absVals = [
+        `${ang.head.toFixed(1)}\u00b0`,
+        `${ang.neck.toFixed(1)}\u00b0`,
+        `${ang.back.toFixed(1)}\u00b0`,
+        `${ang.neckHead.toFixed(1)}\u00b0`,
+        `${ang.neckBody.toFixed(1)}\u00b0`,
+        `${heightH.toFixed(1)}h`,
+    ];
+    absCells.forEach((td, i) => (td.textContent = absVals[i]));
     // neckBody is inverted: it shrinks when slouching
     const neckBodyDev = Math.max(0, correctAngles.neckBody - ang.neckBody);
     const dropVal = drop(data, correctPoints);
     tiltsBody.replaceChildren(
+        span('correct:'),
         span(`neck: ${devs.neck.toFixed(1)}\u00b0`),
         span(`neckBody: ${neckBodyDev.toFixed(1)}\u00b0`),
         span(`back: ${devs.back.toFixed(1)}\u00b0`),
@@ -236,17 +321,11 @@ const conn = new AppConnection({
             const data = JSON.parse(msg);
             lastData = data; // always keep latest frame so calibration stays possible
             drawPoints(data);
-            const drift = driftSum(data);
-            const inPosition = drift === null || drift <= POSITION_MAX_DRIFT;
-            presence.onFrame(inPosition && hasPosture(data));
-            if (!inPosition) {
-                postureEl.textContent = 'posture: not at desk';
-                slouchMeter.reset();
-                slouchStart = null;
-                alerted = false;
-                return;
-            }
+            if (LOG_DISTANCE) console.debug('[distance] drift:', driftSum(data)?.toFixed(3));
+            presence.onFrame(hasPosture(data));
             updatePosture(data);
+            updateAdaptive(data);
+            updateDrift(data);
         } catch {
             // ignore non-json
         }
