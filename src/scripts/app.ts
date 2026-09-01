@@ -221,6 +221,11 @@ if (LOG_ENABLED) {
 
 let slouching = false;
 
+// head angle source: face-landmarker pitch when available, else point-derived head.
+// the two read differently, so a switch makes the value jump and would look like a
+// slouch — track the source and reset the diff/integral history on any switch.
+let headSource: 'pitch' | 'head' | null = null;
+
 function updatePosture(data: any) {
     if (!data.ear || !data.eye || !data.shoulder || !data.hip) {
         postureEl.textContent = 'posture: ?';
@@ -229,6 +234,15 @@ function updatePosture(data: any) {
     // data = smoothed midpoints from camera
     const ang = angles(data);
     if (LOG_ENABLED) postureLog.log(data, ang);
+
+    const src = data.pitch != null ? 'pitch' : 'head';
+    if (headSource !== null && src !== headSource) {
+        history.length = 0;
+        paramHigh[0] = false;
+        diffCells[0].textContent = '-';
+        intCells[0].textContent = '-';
+    }
+    headSource = src;
 
     // absolute values: angles + lean + drop
     // neckBody inverted (180 - x): it shrinks when slouching, so flip it to grow
