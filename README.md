@@ -32,3 +32,4 @@ Both pages log these steps in order (with timestamps) into their `#log` list.
 
 
 -[x] 1 euro smoothign filter - instead of lpf
+-[ ] detect actual sitting vs standing up / background false positives in wrong rotation

@@ -8,9 +8,9 @@ import { createFaceLandmarker, headPose } from '../scripts/faceLandmarker';
 import { LandmarkOneEuro, OneEuroFilter } from '../scripts/filter';
 import { midpoints, angles } from '../scripts/posture';
 import { drawFrame, drawPitch } from '../scripts/canvas';
-import { bebep, chord } from '../scripts/tone';
+import { bebep } from '../scripts/tone';
 
-export const PARAMS = ['head', 'neck', 'neckBody', 'lean', 'drop'] as const;
+export const PARAMS = ['head', 'neck', 'neckBody', 'lean', 'drop', 'pitch', 'yaw'] as const;
 
 // tuning, carried over from the demo scripts
 const FILTER_OPTS = { minCutoff: 1, beta: 0.3, dCutoff: 1 }; // 1 euro filter
@@ -18,8 +18,11 @@ const DIFF_LOOKBACK_S = 8; // diff = value now vs value this long ago
 const INTEGRAL_WINDOW_S = 6; // integrate diff over this window
 const SLOUCH_THRESH = 35; // integral above this = param high (positive only)
 const SLOUCH_HYST_FACTOR = 0.5; // clears only below SLOUCH_THRESH * this
-const PRESENCE_TIMEOUT_MS = 10000; // no frame for this long = gone
-const BREAK_AFTER_MS = 30 * 60 * 1000;
+const FRONTAL_YAW_DEG = 35; // |yaw| under this = user facing screen (frontal view)
+// which params can trigger slouch per view: side-view geometry metrics are
+// meaningless from the front, and pitch needs to see the face from the front
+const SIDE_ONLY = new Set(['head', 'neck', 'neckBody', 'lean']);
+const FRONTAL_ONLY = new Set(['pitch']);
 
 export type Phase = 'loading' | 'ready' | 'running' | 'error';
 
@@ -33,8 +36,6 @@ export interface EngineState {
     paramHigh: boolean[];
     slouching: boolean;
     seen: boolean;
-    sessionMs: number | null; // null = not seated
-    breakDue: boolean;
 }
 
 export class PostureEngine {
@@ -54,10 +55,12 @@ export class PostureEngine {
 
     private smoother = new LandmarkOneEuro(FILTER_OPTS);
     private pitchFilter = new OneEuroFilter(FILTER_OPTS);
+    private yawFilter = new OneEuroFilter(FILTER_OPTS);
     private lastPitch: number | null = null; // face-landmarker pitch, else null
-    // head angle source: pitch reads differently than point-derived head, so a
-    // switch looks like a slouch — reset diff/integral history on any switch
-    private headSource: 'pitch' | 'head' | null = null;
+    private lastYaw: number | null = null; // face-landmarker yaw, 0 = facing screen
+    // view (frontal vs side) swap invalidates history: values read differently,
+    // so stale integrals could instantly fire in the new mode
+    private frontal: boolean | null = null;
 
     // diff/integral history (sliding samples)
     private history: { t: number; vals: number[] }[] = [];
@@ -67,12 +70,6 @@ export class PostureEngine {
     private paramHigh = PARAMS.map(() => false);
     private slouching = false;
     private seen = false;
-
-    // presence / session
-    private lastSeen: number | null = null;
-    private sessionStart: number | null = null;
-    private sessionTimer: ReturnType<typeof setInterval> | null = null;
-    private breakAnnounced = false;
 
     paused = false;
 
@@ -86,8 +83,6 @@ export class PostureEngine {
             paramHigh: this.paramHigh.slice(),
             slouching: this.slouching,
             seen: this.seen,
-            sessionMs: this.sessionStart === null ? null : Date.now() - this.sessionStart,
-            breakDue: this.breakAnnounced,
         };
     }
 
@@ -158,7 +153,6 @@ export class PostureEngine {
 
     setPaused(paused: boolean) {
         this.paused = paused;
-        if (paused) this.resetSession(); // freeze session timer while paused
         this.emit();
     }
 
@@ -166,7 +160,6 @@ export class PostureEngine {
         this.disposed = true;
         cancelAnimationFrame(this.raf);
         document.removeEventListener('visibilitychange', this.onVisibility);
-        this.resetSession();
         this.stream?.getTracks().forEach((t) => t.stop());
     }
 
@@ -184,7 +177,13 @@ export class PostureEngine {
         const face = this.faceLandmarker.detectForVideo(video, now);
         if (face?.faceLandmarks?.[0]) {
             const pose = headPose(face);
-            if (pose) this.lastPitch = -this.pitchFilter.filter(pose.pitch, now);
+            if (pose) {
+                this.lastPitch = -this.pitchFilter.filter(pose.pitch, now);
+                this.lastYaw = this.yawFilter.filter(pose.yaw, now);
+            }
+        } else {
+            this.lastPitch = null;
+            this.lastYaw = null;
         }
 
         const raw = result?.landmarks?.[0];
@@ -211,20 +210,11 @@ export class PostureEngine {
     private onFrame(points: any | null) {
         if (!points || !points.ear || !points.eye || !points.shoulder || !points.hip) {
             this.seen = false;
-            this.checkGone();
             this.emit();
             return;
         }
         this.seen = true;
-        this.presence();
         const ang = angles(points);
-
-        const src = this.lastPitch != null ? 'pitch' : 'head';
-        if (this.headSource !== null && src !== this.headSource) {
-            this.history.length = 0;
-            this.paramHigh[0] = false;
-        }
-        this.headSource = src;
 
         // absolute values: angles + lean + drop
         // neckBody inverted (180 - x): it shrinks when slouching, flip to grow
@@ -239,18 +229,31 @@ export class PostureEngine {
         const dropPts = [points.ear, points.eye, points.shoulder, points.hip];
         if (points.nose) dropPts.push(points.nose);
         const drop = (dropPts.reduce((s, p) => s + p.y, 0) / dropPts.length) * 100;
-        this.abs = [this.lastPitch ?? ang.head, ang.neck, 180 - ang.neckBody, lean, drop];
+        this.abs = [ang.head, ang.neck, 180 - ang.neckBody, lean, drop, this.lastPitch ?? NaN, this.lastYaw ?? NaN];
 
         this.updateDiff();
 
-        // per-param trigger with hysteresis (negative integrals never trigger)
-        PARAMS.forEach((_, i) => {
+        // per-param trigger with hysteresis (negative integrals never trigger).
+        // frontal view (yaw ≈ 0, facing screen): only pitch + drop trigger.
+        // side view: side-view geometry metrics (head/neck/neckBody/lean) only.
+        // ignored params can't trigger but still clear an existing high state.
+        const frontal = Math.abs(this.lastYaw ?? 0) < FRONTAL_YAW_DEG;
+        if (this.frontal !== null && frontal !== this.frontal) {
+            this.history.length = 0;
+            this.paramHigh.fill(false);
+        }
+        this.frontal = frontal;
+        PARAMS.forEach((p, i) => {
+            const ignored = p === 'yaw' || (frontal ? SIDE_ONLY.has(p) : FRONTAL_ONLY.has(p));
             const v = this.integral[i];
-            if (Number.isFinite(v)) {
-                if (!this.paramHigh[i] && v > SLOUCH_THRESH) this.paramHigh[i] = true;
-                else if (this.paramHigh[i] && v < SLOUCH_THRESH * SLOUCH_HYST_FACTOR)
+            if (ignored || !Number.isFinite(v)) {
+                if (this.paramHigh[i] && v < SLOUCH_THRESH * SLOUCH_HYST_FACTOR)
                     this.paramHigh[i] = false;
+                return;
             }
+            if (!this.paramHigh[i] && v > SLOUCH_THRESH) this.paramHigh[i] = true;
+            else if (this.paramHigh[i] && v < SLOUCH_THRESH * SLOUCH_HYST_FACTOR)
+                this.paramHigh[i] = false;
         });
 
         const slouch = this.paramHigh.some(Boolean);
@@ -307,43 +310,5 @@ export class PostureEngine {
             }
         }
         return null;
-    }
-
-    // --- presence / session timer ---
-
-    private presence() {
-        const now = Date.now();
-        if (this.sessionStart === null) {
-            this.sessionStart = now;
-            this.sessionTimer = setInterval(() => {
-                this.checkGone();
-                this.tickBreak();
-                this.emit();
-            }, 1000);
-        }
-        this.lastSeen = now;
-    }
-
-    private checkGone() {
-        if (this.sessionStart === null) return;
-        if (this.lastSeen !== null && Date.now() - this.lastSeen > PRESENCE_TIMEOUT_MS) {
-            this.resetSession();
-        }
-    }
-
-    private tickBreak() {
-        if (this.sessionStart === null) return;
-        if (Date.now() - this.sessionStart >= BREAK_AFTER_MS && !this.breakAnnounced) {
-            this.breakAnnounced = true;
-            chord(440);
-        }
-    }
-
-    private resetSession() {
-        if (this.sessionTimer) clearInterval(this.sessionTimer);
-        this.sessionTimer = null;
-        this.sessionStart = null;
-        this.breakAnnounced = false;
-        this.lastSeen = null;
     }
 }

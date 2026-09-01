@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { PostureEngine, type EngineState } from './engine';
+import { useSeating } from './seating';
 import CameraView from './CameraView';
 import DebugPanel from './DebugPanel';
 
-function seatingText(s: EngineState) {
-    if (s.sessionMs === null) return 'undetected';
-    if (s.breakDue) return 'get up 🚶';
-    const sec = Math.floor(s.sessionMs / 1000);
-    const mm = String(Math.floor(sec / 60)).padStart(2, '0');
-    const ss = String(sec % 60).padStart(2, '0');
-    return `seated: ${mm}:${ss}`;
+function mmss(ms: number) {
+    const sec = Math.floor(ms / 1000);
+    return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
 }
 
 export default function App() {
@@ -19,6 +16,7 @@ export default function App() {
     const [showCam, setShowCam] = useState(true);
     const [paused, setPaused] = useState(false);
     const running = state.phase === 'running';
+    const seating = useSeating(engine, paused && running);
 
     useEffect(() => {
         engine.onState = setState;
@@ -54,16 +52,42 @@ export default function App() {
                 </div>
             ) : (
                 <>
-                    <div class="flex flex-wrap items-center gap-3">
-                        <h1 class="text-xl font-bold">posture</h1>
-                        <span class="opacity-70">{state.status}</span>
-                        <span>{seatingText(state)}</span>
-                        <span class={state.slouching ? 'font-bold text-orange-500' : ''}>
-                            {state.slouching
-                                ? 'sit up straight!'
-                                : state.seen
-                                  ? 'posture: good'
-                                  : 'posture: ?'}
+                    {/* meta row */}
+                    <div class="flex flex-wrap items-center gap-3 text-sm opacity-80">
+                        <span>{state.status}</span>
+                    </div>
+
+                    {/* today's total, right-aligned above seating */}
+                    <div class="self-end rounded-lg bg-slate-300/60 px-2 py-1 text-sm tabular-nums">
+                        🪑 {Math.floor(seating.totalMs / 60_000)} min total ☀️
+                    </div>
+
+                    {/* seating hero: emoji + label, counter below */}
+                    <div class="flex flex-col">
+                        <span
+                            class={`text-4xl font-bold ${seating.breakDue ? 'text-orange-500' : ''}`}
+                        >
+                            {seating.breakDue ? '🚶' : seating.sitting ? '🪑' : '🚶'}
+                        </span>
+                        <span class="text-sm opacity-70">
+                            {seating.breakDue ? 'get up!' : seating.sitting ? 'sitting' : 'not at desk'}
+                        </span>
+                        {seating.sitting && !seating.breakDue && (
+                            <span class="text-4xl font-bold tabular-nums">
+                                {mmss(seating.sessionMs ?? 0)}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* posture: emoji above label */}
+                    <div class="flex flex-col">
+                        <span class="text-3xl">
+                            {state.slouching ? '🥀' : state.seen ? '🌻' : '❓'}
+                        </span>
+                        <span
+                            class={`text-sm ${state.slouching ? 'font-semibold text-orange-500' : 'opacity-70'}`}
+                        >
+                            {state.slouching ? 'bad' : state.seen ? 'good' : '?'}
                         </span>
                     </div>
 
