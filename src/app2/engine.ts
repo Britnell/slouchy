@@ -8,7 +8,7 @@ import { createFaceLandmarker, headPose } from '../scripts/faceLandmarker';
 import { LandmarkOneEuro, OneEuroFilter } from '../scripts/filter';
 import { midpoints, angles } from '../scripts/posture';
 import { drawFrame, drawPitch } from '../scripts/canvas';
-import { badidi, chord } from '../scripts/tone';
+import { bebep, chord } from '../scripts/tone';
 
 export const PARAMS = ['head', 'neck', 'neckBody', 'lean', 'drop'] as const;
 
@@ -256,7 +256,7 @@ export class PostureEngine {
         const slouch = this.paramHigh.some(Boolean);
         if (slouch !== this.slouching) {
             this.slouching = slouch;
-            if (slouch) badidi();
+            if (slouch) bebep();
         }
         this.emit();
     }

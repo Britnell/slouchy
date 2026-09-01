@@ -42,6 +42,18 @@ export function badidi() {
     play(ALERT_NOTES);
 }
 
+export function bebep() {
+    // two quick same notes, short break, then the same note again (long)
+    const NOTE_LENGTH = 0.18; // s
+    const FREQ = 480; // a lil lower than badidi's
+    const ALERT_NOTES = [
+        [0.15, FREQ, NOTE_LENGTH],
+        [0.35, FREQ, NOTE_LENGTH],
+        [0.75, FREQ, NOTE_LENGTH * 5],
+    ]  // [start offset s, freq Hz, length s]
+    play(ALERT_NOTES);
+}
+
 
 // voices load async in most browsers; force them to load
 speechSynthesis.getVoices();
