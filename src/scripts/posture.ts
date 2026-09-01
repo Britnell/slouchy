@@ -15,7 +15,7 @@ export function midpoints(l) {
     return {
         shoulder: mid(11, 12),
         hip: mid(23, 24),
-        ear: frontIsL ? l[7] : l[8],
+        ear: mid(7, 8),
         eye: frontIsL ? l[2] : l[5],
         nose: l[0],
     };
