@@ -1,6 +1,6 @@
 import { MODELS, createLandmarker, LandmarkSmoother } from "./poseLandmarker";
 import { midpoints, angles, deviations, SlouchMeter, drop } from "./posture";
-import { beep } from "./tone";
+import { badidi } from "./tone";
 
 import { drawFrame, fitToVideo } from "./canvas";
 
@@ -75,7 +75,7 @@ let slouching = false;
 
 function onSlouchStart() {
     console.log("slouch start");
-    beep();
+    badidi();
 }
 
 function onSlouchEnd() {

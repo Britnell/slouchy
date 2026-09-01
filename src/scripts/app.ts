@@ -1,7 +1,7 @@
 import { AppConnection } from './webrtc-app';
 import { angles } from './posture';
 import { PostureLogger } from './logger';
-import { speak, beep, chord } from './tone';
+import { speak, badidi, chord } from './tone';
 
 const status = document.getElementById('status')!;
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -20,13 +20,15 @@ const COLORS: Record<string, string> = {
 };
 
 
-const PRESENCE_TIMEOUT_MS = 10000; // no frame for this long = gone
-const BREAK_AFTER_MS = 30 * 60 * 1000;
-const SLOUCH_PERIOD = 3; // seconds in slouch before alerting
+//
 const DIFF_LOOKBACK_S = 8; // diff = value now vs value this long ago
 const INTEGRAL_WINDOW_S = 6; // integrate diff over this window
-const SLOUCH_THRESH = 50; // integral above this = param high (positive only, negative = straightening up)
+//
+const SLOUCH_THRESH = 35; // integral above this = param high (positive only, negative = straightening up)
 const SLOUCH_HYST_FACTOR = 0.5; // hysteresis: param clears only below SLOUCH_THRESH * this
+//
+const PRESENCE_TIMEOUT_MS = 10000; // no frame for this long = gone
+const BREAK_AFTER_MS = 30 * 60 * 1000;
 
 
 function drawPoints(data: any) {
@@ -254,8 +256,7 @@ if (LOG_ENABLED) {
 // calibration = just the point positions; angles are derived from them
 let correctPoints: Record<string, { x: number; y: number }> | null =
     JSON.parse(localStorage.getItem('correctPosture') ?? 'null')?.points ?? null;
-let slouchStart: number | null = null;
-let alerted = false;
+let slouching = false;
 
 // sum of per-point distances from calibrated position (no longer gates frames;
 // logged when LOG_DISTANCE is on)
@@ -326,18 +327,15 @@ function updatePosture(data: any) {
         intCells[i].style.backgroundColor = paramHigh[i] ? 'orange' : '';
     });
 
-    const now = performance.now();
-    if (paramHigh.some(Boolean)) {
-        if (slouchStart === null) slouchStart = now;
-        if (!alerted && now - slouchStart >= SLOUCH_PERIOD * 1000) {
-            alerted = true;
-            console.warn('[posture] ALERT: slouch for', (now - slouchStart) / 1000, 's');
-            beep();
+    const slouch = paramHigh.some(Boolean);
+    if (slouch !== slouching) {
+        slouching = slouch;
+        if (slouch) {
+            badidi();
             postureEl.textContent = 'sit up straight!';
+        } else {
+            postureEl.textContent = 'posture: good';
         }
-    } else {
-        slouchStart = null;
-        alerted = false;
     }
 }
 
@@ -351,8 +349,7 @@ correctBtn.addEventListener('click', () => {
     // reset detector: drop baseline jumps on recalibration
     history.length = 0;
     paramHigh.fill(false);
-    slouchStart = null;
-    alerted = false;
+    slouching = false;
 });
 
 const conn = new AppConnection({

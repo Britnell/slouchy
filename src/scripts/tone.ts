@@ -1,9 +1,4 @@
-const NOTE_LENGTH = 0.18; // s
-const ALERT_NOTES = [
-    [0.15, 660, NOTE_LENGTH],
-    [0.35, 520, NOTE_LENGTH],
-    [0.75, 520, NOTE_LENGTH * 5],
-]; // [start offset s, freq Hz, length s]
+
 const ALERT_VOLUME = 0.15;
 
 /** notes: [start offset s, freq Hz, length s][] */
@@ -36,8 +31,14 @@ export function chord(root: number, gap = 0.12, len = NOTE_LENGTH) {
     );
 }
 
-export function beep() {
+export function badidi() {
     // blip-blop: high note then two repeated lower ones
+    const NOTE_LENGTH = 0.18; // s
+    const ALERT_NOTES = [
+        [0.15, 660, NOTE_LENGTH],
+        [0.35, 520, NOTE_LENGTH],
+        [0.75, 520, NOTE_LENGTH * 5],
+    ]  // [start offset s, freq Hz, length s]
     play(ALERT_NOTES);
 }
 
