@@ -88,8 +88,6 @@ const presence = {
 };
 presence.render();
 
-let lastData: any = null;
-
 let appPaused = false;
 
 // --- posture / slouch ---
@@ -115,9 +113,7 @@ const absCells = ABS_LABELS.map((name) => {
 });
 absTable.append(absHeadRow, absValRow);
 tiltsEl.append(absTable);
-const correctBtn = document.createElement('button');
-correctBtn.textContent = 'correct posture';
-seatingEl.after(postureEl, tiltsEl, correctBtn);
+seatingEl.after(postureEl, tiltsEl);
 
 // --- self-diff + integral: value vs itself DIFF_LOOKBACK_S ago, then trapezoidal
 // integral of that diff over INTEGRAL_WINDOW_S (sliding sample history) ---
@@ -210,11 +206,10 @@ pauseBtn.addEventListener('click', () => {
     pauseBtn.textContent = appPaused ? '▶ resume' : '⏸ pause';
     if (appPaused) presence.reset(); // freeze session timer while paused
 });
-correctBtn.after(pauseBtn);
+tiltsEl.after(pauseBtn);
 
 // --- research logger (see detection.md) ---
 const LOG_ENABLED = false;
-const LOG_DISTANCE = false; // log per-frame drift from calibrated position
 const postureLog = new PostureLogger();
 if (LOG_ENABLED) {
     (window as any).postureLogDownload = () => postureLog.download();
@@ -224,51 +219,7 @@ if (LOG_ENABLED) {
     pauseBtn.after(logBtn);
 }
 
-// calibration = just the point positions; angles are derived from them
-let correctPoints: Record<string, { x: number; y: number }> | null =
-    JSON.parse(localStorage.getItem('correctPosture') ?? 'null')?.points ?? null;
 let slouching = false;
-
-// sum of per-point distances from calibrated position (no longer gates frames;
-// logged when LOG_DISTANCE is on)
-function driftSum(data: any): number | null {
-    if (!correctPoints) return null;
-    let sum = 0;
-    for (const [k, a] of Object.entries<any>(correctPoints)) {
-        const b = data[k];
-        if (!b) return null;
-        sum += Math.hypot(a.x - b.x, a.y - b.y);
-    }
-    return sum;
-}
-
-// drop: cumulative y sink vs calibration across all points (model can't see arching,
-// it just lowers everything, so sinking = drop).
-let lastDrop: number | null = null;
-function dropValue(data: any): number | null {
-    if (!correctPoints) {
-        lastDrop = null;
-        return null;
-    }
-    let dySum = 0;
-    let dxSum = 0;
-    let n = 0;
-    const dys: Record<string, number> = {};
-    for (const [k, a] of Object.entries<any>(correctPoints)) {
-        const b = data[k];
-        if (!b) {
-            return lastDrop;
-        }
-        dys[k] = +((b.y - a.y) * 100).toFixed(1);
-        dySum += b.y - a.y;
-        dxSum += Math.abs(b.x - a.x);
-        n++;
-    }
-    const drop = (dySum / n) * 100; // + = all points moved down
-    const dx = (dxSum / n) * 100;
-    lastDrop = drop;
-    return drop;
-}
 
 function updatePosture(data: any) {
     if (!data.ear || !data.eye || !data.shoulder || !data.hip) {
@@ -279,14 +230,19 @@ function updatePosture(data: any) {
     const ang = angles(data);
     if (LOG_ENABLED) postureLog.log(data, ang);
 
-    // absolute values: angles + lean + calibrated drop
+    // absolute values: angles + lean + drop
     // neckBody inverted (180 - x): it shrinks when slouching, so flip it to grow
     // positive on slouch like the other params
     const lean = data.nose
         ? (Math.abs(data.nose.x - data.shoulder.x) / Math.hypot(data.ear.x - data.shoulder.x, data.ear.y - data.shoulder.y)) * 100
         : NaN;
     // head = face-landmarker pitch when available (more precise than the point-derived angle)
-    const absNums = [data.pitch ?? ang.head, ang.neck, 180 - ang.neckBody, lean, dropValue(data) ?? NaN];
+    // drop = mean height of all points (model can't see arching, it just lowers everything,
+    // so sinking = drop). diffed/integrated like the rest, no calibration needed.
+    const dropPts = [data.ear, data.eye, data.shoulder, data.hip];
+    if (data.nose) dropPts.push(data.nose);
+    const drop = (dropPts.reduce((s, p) => s + p.y, 0) / dropPts.length) * 100;
+    const absNums = [data.pitch ?? ang.head, ang.neck, 180 - ang.neckBody, lean, drop];
     absCells.forEach(
         (td, i) => (td.textContent = Number.isFinite(absNums[i]) ? absNums[i].toFixed(1) : '-')
     );
@@ -315,29 +271,12 @@ function updatePosture(data: any) {
     }
 }
 
-correctBtn.addEventListener('click', () => {
-    // calibrate from the last frame drawn (kept fresh even for out-of-position frames,
-    // so a stale calibration after moving the camera can always be replaced)
-    const data = lastData;
-    if (!data?.ear || !data?.eye || !data?.shoulder || !data?.hip) return;
-    correctPoints = data;
-    localStorage.setItem('correctPosture', JSON.stringify({ points: correctPoints }));
-    // reset detector: drop baseline jumps on recalibration
-    history.length = 0;
-    paramHigh.fill(false);
-    slouching = false;
-});
-
 const conn = new AppConnection({
     status: setStatus,
     message: (msg) => {
         if (appPaused) return; // ignore packets while paused
         try {
             const data = JSON.parse(msg);
-            lastData = data; // always keep latest frame so calibration stays possible
-          // if (data.pitch != null)
-            console.log('pitch', data.pitch);
-            if (LOG_DISTANCE) console.log('[distance] drift:', driftSum(data)?.toFixed(3));
             presence.onFrame(hasPosture(data));
             updatePosture(data);
         } catch {
