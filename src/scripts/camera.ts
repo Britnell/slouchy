@@ -1,8 +1,8 @@
 import { createLandmarker } from './poseLandmarker';
 import { createFaceLandmarker, headPose } from './faceLandmarker';
-import { LandmarkOneEuro } from './filter';
+import { LandmarkOneEuro, OneEuroFilter } from './filter';
 import { midpoints } from './posture';
-import { drawFrame, fitToVideo } from './canvas';
+import { drawFrame, drawPitch, fitToVideo } from './canvas';
 import { CameraConnection } from './webrtc-camera';
 
 const uid = new URLSearchParams(location.search).get('uid');
@@ -72,6 +72,7 @@ async function startDetection(conn: CameraConnection, sendIntervalMs: number) {
     await video.play();
 
     const smoother = new LandmarkOneEuro(FILTER_OPTS);
+    const pitchFilter = new OneEuroFilter(FILTER_OPTS);
     let lastVideoTime = -1;
     let lastSent = 0;
     let lastPitch = null; // set by face detection, sent & cleared with next body frame
@@ -84,13 +85,24 @@ async function startDetection(conn: CameraConnection, sendIntervalMs: number) {
             const face = faceLandmarker.detectForVideo(video, now);
             if (face?.faceLandmarks?.[0]) {
                 const pose = headPose(face);
-                if (pose) lastPitch = pose.pitch;
+                if (pose) {
+                    lastPitch = -pitchFilter.filter(pose.pitch, now);
+                }
             }
             const raw = result?.landmarks?.[0];
             if (raw) {
                 const landmarks = smoother.smooth(raw, now);
                 const points = midpoints(landmarks);
                 drawFrame(canvasCtx, canvas, points, landmarks);
+                if (lastPitch != null) {
+                    drawPitch(
+                        canvasCtx,
+                        canvas,
+                        canvas.width * 0.06,
+                        canvas.height * 0.06,
+                        lastPitch,
+                    );
+                }
                 if (now - lastSent >= sendIntervalMs) {
                     lastSent = now;
                     conn.send(

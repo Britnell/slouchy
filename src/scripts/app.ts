@@ -285,7 +285,8 @@ function updatePosture(data: any) {
     const lean = data.nose
         ? (Math.abs(data.nose.x - data.shoulder.x) / Math.hypot(data.ear.x - data.shoulder.x, data.ear.y - data.shoulder.y)) * 100
         : NaN;
-    const absNums = [ang.head, ang.neck, 180 - ang.neckBody, lean, dropValue(data) ?? NaN];
+    // head = face-landmarker pitch when available (more precise than the point-derived angle)
+    const absNums = [data.pitch ?? ang.head, ang.neck, 180 - ang.neckBody, lean, dropValue(data) ?? NaN];
     absCells.forEach(
         (td, i) => (td.textContent = Number.isFinite(absNums[i]) ? absNums[i].toFixed(1) : '-')
     );
@@ -334,7 +335,8 @@ const conn = new AppConnection({
         try {
             const data = JSON.parse(msg);
             lastData = data; // always keep latest frame so calibration stays possible
-            if (data.pitch != null) console.log('pitch', data.pitch);
+          // if (data.pitch != null)
+            console.log('pitch', data.pitch);
             if (LOG_DISTANCE) console.log('[distance] drift:', driftSum(data)?.toFixed(3));
             presence.onFrame(hasPosture(data));
             updatePosture(data);

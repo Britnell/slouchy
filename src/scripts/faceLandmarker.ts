@@ -29,8 +29,8 @@ export function headPose(face) {
     const [m00, m01, m02, , m10, m11, m12, , m20, m21, m22] = m;
     const sy = Math.sqrt(m00 * m00 + m01 * m01);
     return {
-        pitch: (Math.atan2(-m20, sy) * 180) / Math.PI,
+        pitch: (Math.atan2(m21, m22) * 180) / Math.PI,
         roll: (Math.atan2(m10, m00) * 180) / Math.PI,
-        yaw: (Math.atan2(m01, m00) * 180) / Math.PI,
+        yaw: (Math.atan2(-m20, sy) * 180) / Math.PI,
     };
 }

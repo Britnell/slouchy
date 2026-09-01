@@ -19,6 +19,20 @@ export function drawFrame(canvasCtx, canvas, points, landmarks) {
     drawPosturePoints(canvasCtx, canvas, points);
 }
 
+// pitch gauge: rectangle rotated by head nod
+// (pitch from face landmarker; nod down rotates it down)
+export function drawPitch(canvasCtx, canvas, cx, cy, pitch) {
+    if (!Number.isFinite(pitch)) return;
+    const w = canvas.width * 0.12,
+        h = canvas.width * 0.02;
+    canvasCtx.save();
+    canvasCtx.translate(cx, cy);
+    canvasCtx.rotate((pitch * Math.PI) / 180);
+    canvasCtx.fillStyle = "#4ade80";
+    canvasCtx.fillRect(-w / 2, -h / 2, w, h);
+    canvasCtx.restore();
+}
+
 // white box through shoulders + hips
 export function drawBox(canvasCtx, canvas, landmarks) {
     const W = canvas.width, H = canvas.height;
