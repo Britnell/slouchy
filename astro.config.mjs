@@ -4,6 +4,8 @@ import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 import fs from 'node:fs';
 
+import preact from '@astrojs/preact';
+
 // https://astro.build/config
 export default defineConfig({
   vite: {
@@ -33,4 +35,6 @@ export default defineConfig({
       },
     },
   },
+
+  integrations: [preact()],
 });

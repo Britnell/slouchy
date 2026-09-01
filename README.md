@@ -31,4 +31,4 @@ Both pages log these steps in order (with timestamps) into their `#log` list.
 - Multiple `candidate` lines in a row are normal (trickle ICE, one per network interface).
 
 
--[ ] 1 euro smoothign filter - instead of lpf
+-[x] 1 euro smoothign filter - instead of lpf
