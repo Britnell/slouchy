@@ -49,12 +49,12 @@ export function drawPosturePoints(canvasCtx, canvas, pts) {
         shoulder: "#38bdf8",
         hip: "#f472b6",
         ear: "#22d3ee",
-        eye: "#a3e635",
         nose: "#fbbf24",
     };
 
     canvasCtx.globalAlpha = 1;
     for (const [name, p] of Object.entries(pts)) {
+        if (name === "eye") continue; // not drawn: eye unused
         canvasCtx.beginPath();
         canvasCtx.arc(p.x * W, p.y * H, 8, 0, 2 * Math.PI);
         canvasCtx.fillStyle = colors[name];
@@ -70,7 +70,6 @@ export function drawPosturePoints(canvasCtx, canvas, pts) {
         canvasCtx.lineWidth = 4;
         canvasCtx.stroke();
     };
-    line(pts.ear, pts.eye, "#a3e635"); // head
     line(pts.ear, pts.nose, "#fbbf24"); // head (nose variant)
     line(pts.ear, pts.shoulder, "#38bdf8"); // neck
     line(pts.shoulder, pts.hip, "#f472b6"); // back

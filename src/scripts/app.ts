@@ -4,21 +4,10 @@ import { PostureLogger } from './logger';
 import { speak, badidi, chord } from './tone';
 
 const status = document.getElementById('status')!;
-const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-const ctx = canvas.getContext('2d')!;
 
 function setStatus(text: string) {
     status.textContent = text;
 }
-
-const COLORS: Record<string, string> = {
-    shoulder: '#f87171',
-    hip: '#fbbf24',
-    ear: '#34d399',
-    eye: '#60a5fa',
-    nose: '#e879f9'
-};
-
 
 //
 const DIFF_LOOKBACK_S = 8; // diff = value now vs value this long ago
@@ -30,24 +19,6 @@ const SLOUCH_HYST_FACTOR = 0.5; // hysteresis: param clears only below SLOUCH_TH
 const PRESENCE_TIMEOUT_MS = 10000; // no frame for this long = gone
 const BREAK_AFTER_MS = 30 * 60 * 1000;
 
-
-function drawPoints(data: any) {
-    // points are normalized 0..1
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (const [name, p] of Object.entries<any>(data)) {
-        if (!p) continue;
-        const x = p.x * canvas.width;
-        const y = p.y * canvas.height;
-
-        ctx.fillStyle = COLORS[name] ?? '#fff';
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.font = '12px monospace';
-        ctx.fillText(name, x + 10, y + 4);
-    }
-}
 
 function hasPosture(data: any): boolean {
     return Object.values<any>(data).some((p) => p && typeof p.x === 'number');
@@ -363,7 +334,6 @@ const conn = new AppConnection({
         try {
             const data = JSON.parse(msg);
             lastData = data; // always keep latest frame so calibration stays possible
-            drawPoints(data);
             if (LOG_DISTANCE) console.log('[distance] drift:', driftSum(data)?.toFixed(3));
             presence.onFrame(hasPosture(data));
             updatePosture(data);
