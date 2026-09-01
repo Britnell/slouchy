@@ -6,7 +6,10 @@ function parse(msg: string | Buffer) {
   try { return JSON.parse(String(msg)); } catch { return null; }
 }
 
-const server = Bun.serve<{ topic: string }>({
+// uid -> number of connected apps, so cameras know whether signaling will be received
+const appCount = new Map<string, number>();
+
+const server = Bun.serve<{ topic: string; role?: 'app' | 'camera' }>({
   port: PORT,
   fetch(req, server) {
     const url = new URL(req.url);
@@ -30,8 +33,11 @@ const server = Bun.serve<{ topic: string }>({
       if (data.type === 'connect') {
         const uid = '123';
         ws.data.topic = uid;
+        ws.data.role = 'app';
         ws.subscribe(uid);
+        appCount.set(uid, (appCount.get(uid) ?? 0) + 1);
         ws.send(JSON.stringify({ type: 'registered', uid }));
+        server.publish(uid, JSON.stringify({ type: 'app-here' })); // announce to any waiting cameras
         console.log(`registered ${uid}`);
         return;
       }
@@ -39,9 +45,11 @@ const server = Bun.serve<{ topic: string }>({
       // camera joins an existing uid channel
       if (data.type === 'join' && typeof data.uid === 'string' && /^\d{3}$/.test(data.uid)) {
         ws.data.topic = data.uid;
+        ws.data.role = 'camera';
         ws.subscribe(data.uid);
-        ws.send(JSON.stringify({ type: 'joined', uid: data.uid }));
-        console.log(`client joined "${data.uid}"`);
+        const appOnline = (appCount.get(data.uid) ?? 0) > 0;
+        ws.send(JSON.stringify({ type: 'joined', uid: data.uid, appOnline }));
+        console.log(`client joined "${data.uid}" (app online: ${appOnline})`);
         return;
       }
 
@@ -60,6 +68,15 @@ const server = Bun.serve<{ topic: string }>({
     },
     close(ws) {
       console.log(`client left "${ws.data.topic}"`);
+      // app gone — tell remaining cameras so they stop signaling into the void
+      if (ws.data.role === 'app' && ws.data.topic) {
+        const remaining = (appCount.get(ws.data.topic) ?? 1) - 1;
+        if (remaining > 0) appCount.set(ws.data.topic, remaining);
+        else {
+          appCount.delete(ws.data.topic);
+          server.publish(ws.data.topic, JSON.stringify({ type: 'app-left' }));
+        }
+      }
     },
   },
 });

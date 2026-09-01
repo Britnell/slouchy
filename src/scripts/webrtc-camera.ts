@@ -16,6 +16,7 @@ export class CameraConnection {
     private intentionalClose = false;
     private signalingDone = false; // ws no longer needed once rtc is up
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    private peerResetPending = false; // peer dropped because app left — don't treat as failure
 
     constructor(
         private uid: string,
@@ -41,7 +42,23 @@ export class CameraConnection {
 
             if (data.type === 'joined') {
                 this.events.status(`joined channel #${data.uid}`);
-                this.peer = this.makePeer(); // only now — offer would be lost before ws is open
+                // only start signaling once the app is actually listening — otherwise the offer is lost
+                if (data.appOnline) this.ensurePeer();
+                else this.events.status('⏳ waiting for app…');
+                return;
+            }
+
+            if (data.type === 'app-here') {
+                this.events.status('app online');
+                this.ensurePeer();
+                return;
+            }
+
+            if (data.type === 'app-left') {
+                this.events.status('✖ app left, waiting…');
+                this.peerResetPending = true;
+                this.peer?.destroy();
+                this.peer = null;
                 return;
             }
 
@@ -90,6 +107,11 @@ export class CameraConnection {
         }
     }
 
+    private ensurePeer() {
+        this.peerResetPending = false;
+        this.peer ??= this.makePeer();
+    }
+
     private makePeer() {
         const p = new Peer({ initiator: true });
 
@@ -108,7 +130,10 @@ export class CameraConnection {
         p.on('data', (d) => this.events.message(`← ${d.toString()}`));
         p.on('close', () => {
             this.peer = null;
-            if (this.intentionalClose) return;
+            if (this.intentionalClose || this.peerResetPending) {
+                this.peerResetPending = false;
+                return;
+            }
             this.signalingDone = false;
             this.events.status('✖ webrtc closed, reconnecting...');
             this.events.disconnected?.();
