@@ -309,8 +309,12 @@ function updatePosture(data: any) {
     if (LOG_ENABLED) postureLog.log(data, ang);
 
     // absolute values: angles + lean + calibrated drop
-    const lean = data.nose ? Math.abs(data.nose.x - data.shoulder.x) * 100 : NaN;
-    const absNums = [ang.head, ang.neck, ang.neckBody, lean, dropValue(data) ?? NaN];
+    // neckBody inverted (180 - x): it shrinks when slouching, so flip it to grow
+    // positive on slouch like the other params
+    const lean = data.nose
+        ? (Math.abs(data.nose.x - data.shoulder.x) / Math.hypot(data.ear.x - data.shoulder.x, data.ear.y - data.shoulder.y)) * 100
+        : NaN;
+    const absNums = [ang.head, ang.neck, 180 - ang.neckBody, lean, dropValue(data) ?? NaN];
     absCells.forEach(
         (td, i) => (td.textContent = Number.isFinite(absNums[i]) ? absNums[i].toFixed(1) : '-')
     );
