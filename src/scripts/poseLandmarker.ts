@@ -27,21 +27,31 @@ export async function createLandmarker(modelKey) {
     });
 }
 
-const LANDMARK_SMOOTHING = 0.05;
-
-// smooth landmark positions to reduce jitter, returns stable landmarks
+// time-based EMA: framerate-independent jitter smoothing, returns stable landmarks
 export class LandmarkSmoother {
     #smoothed = null;
+    #lastT: number | null = null;
+    #tauS: number;
 
-    smooth(rawLandmarks) {
-        if (!this.#smoothed)
+    constructor(tauS = 2) {
+        this.#tauS = tauS;
+    }
+
+    smooth(rawLandmarks, nowMs = performance.now()) {
+        if (!this.#smoothed) {
             this.#smoothed = rawLandmarks.map((p) => ({ ...p }));
+            this.#lastT = nowMs;
+            return this.#smoothed;
+        }
+        const dtS = (nowMs - this.#lastT!) / 1000;
+        this.#lastT = nowMs;
+        const alpha = 1 - Math.exp(-dtS / this.#tauS);
         for (let i = 0; i < rawLandmarks.length; i++) {
             const s = this.#smoothed[i],
                 p = rawLandmarks[i];
-            s.x += LANDMARK_SMOOTHING * (p.x - s.x);
-            s.y += LANDMARK_SMOOTHING * (p.y - s.y);
-            s.z += LANDMARK_SMOOTHING * (p.z - s.z);
+            s.x += alpha * (p.x - s.x);
+            s.y += alpha * (p.y - s.y);
+            s.z += alpha * (p.z - s.z);
         }
         return this.#smoothed;
     }

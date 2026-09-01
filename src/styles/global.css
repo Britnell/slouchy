@@ -3,13 +3,21 @@
 table {
     border-collapse: collapse;
     font-family: monospace;
-    font-size: 12px;
+    font-size: 14px;
 }
 
 th,
 td {
-    padding: 0 0.6em;
+    padding: 0.3em 0.9em;
     text-align: right;
+}
+
+/* value cells: fixed width, aligned digits */
+td:not(:first-child),
+th:not(:first-child) {
+    min-width: 4.5em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 th {

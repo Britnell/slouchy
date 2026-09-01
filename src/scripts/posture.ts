@@ -80,10 +80,9 @@ export function deviations(angles, correct) {
     );
 }
 
-const SLOUCH_SMOOTHING = 0.05;
 const DROP_WEIGHT = 100; // deg of slouch per unit of normalized y-drop
 
-// step 5: single slouch value, smoothed over time
+// step 5: single slouch value, raw — input is already camera-smoothed
 export class SlouchMeter {
     smoothed = null;
 
@@ -95,10 +94,7 @@ export class SlouchMeter {
         const dropVal = drop(points, correctPoints) ?? 0;
         const raw = devs.neck + 1.0 * neckBodyDev + DROP_WEIGHT * dropVal;
         const slouch = Math.max(0, raw);
-        this.smoothed =
-            this.smoothed === null
-                ? slouch
-                : this.smoothed + SLOUCH_SMOOTHING * (slouch - this.smoothed);
+        this.smoothed = slouch;
         return this.smoothed;
     }
 

@@ -29,3 +29,6 @@ Both pages log these steps in order (with timestamps) into their `#log` list.
 ## Signaling notes
 - Relay (`server/ws.ts`) broadcasts `signal` messages on the uid channel; clients ignore their own echoes via random `from` id.
 - Multiple `candidate` lines in a row are normal (trickle ICE, one per network interface).
+
+
+-[ ] 1 euro smoothign filter - instead of lpf

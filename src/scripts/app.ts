@@ -1,7 +1,5 @@
 import { AppConnection } from './webrtc-app';
-import { SlouchMeter, angles, deviations, drop } from './posture';
-import { AdaptiveMeter } from './adaptive';
-import { DriftMeter } from './drift';
+import { angles } from './posture';
 import { PostureLogger } from './logger';
 import { speak, beep, chord } from './tone';
 
@@ -24,6 +22,11 @@ const COLORS: Record<string, string> = {
 
 const PRESENCE_TIMEOUT_MS = 10000; // no frame for this long = gone
 const BREAK_AFTER_MS = 30 * 60 * 1000;
+const SLOUCH_PERIOD = 3; // seconds in slouch before alerting
+const DIFF_LOOKBACK_S = 8; // diff = value now vs value this long ago
+const INTEGRAL_WINDOW_S = 6; // integrate diff over this window
+const SLOUCH_THRESH = 50; // integral above this = param high (positive only, negative = straightening up)
+const SLOUCH_HYST_FACTOR = 0.5; // hysteresis: param clears only below SLOUCH_THRESH * this
 
 
 function drawPoints(data: any) {
@@ -117,18 +120,18 @@ let lastData: any = null;
 let appPaused = false;
 
 // --- posture / slouch ---
-const SLOUCH_PERIOD = 3; // seconds in terrible before alerting
-const WARMUP_S = 60; // adaptive meter warm-up, seconds
-const slouchMeter = new SlouchMeter();
 const postureEl = document.createElement('div');
 const tiltsEl = document.createElement('p');
-// tiltsEl.append(Object.assign(document.createElement('summary'), { textContent: 'details' }));
-const tiltsBody = document.createElement('div');
-// absolute values table: 1 header row + 1 value row
-const ABS_LABELS = ['head', 'neck', 'back', 'neckHead', 'neckBody', 'height'] as const;
+// absolute values table: angles + lean + cumulative drop vs calibration
+const ABS_LABELS = ['head', 'neck', 'neckBody', 'lean', 'drop'] as const;
 const absTable = document.createElement('table');
 const absHeadRow = document.createElement('tr');
 const absValRow = document.createElement('tr');
+const headCorner = document.createElement('th');
+absHeadRow.append(headCorner);
+const valLabel = document.createElement('td');
+valLabel.textContent = 'angles';
+absValRow.append(valLabel);
 const absCells = ABS_LABELS.map((name) => {
     const th = document.createElement('th');
     th.textContent = name;
@@ -138,66 +141,93 @@ const absCells = ABS_LABELS.map((name) => {
     return td;
 });
 absTable.append(absHeadRow, absValRow);
-tiltsEl.append(absTable, tiltsBody);
+tiltsEl.append(absTable);
 const correctBtn = document.createElement('button');
 correctBtn.textContent = 'correct posture';
 seatingEl.after(postureEl, tiltsEl, correctBtn);
 
-// --- calibration-free detection v1 (analysis/detection.md) ---
-const adaptiveMeter = new AdaptiveMeter();
-const adaptiveEl = document.createElement('p');
-tiltsEl.after(adaptiveEl);
-const ADAPTIVE_THRESHOLD = 13; // degrees-like, same scale as calibrated slouch
-let adaptiveStart: number | null = null;
-let adaptiveAlerted = false;
+// --- self-diff + integral: value vs itself DIFF_LOOKBACK_S ago, then trapezoidal
+// integral of that diff over INTEGRAL_WINDOW_S (sliding sample history) ---
 
-function updateAdaptive(data: any) {
-    if (!data.ear || !data.eye || !data.shoulder || !data.hip) return;
-    const adv = adaptiveMeter.value(angles(data), data);
-    if (!adv.ready) {
-        adaptiveEl.textContent = `adaptive: warming up ${Math.floor(adv.ageMs / 1000)}/${WARMUP_S}s`;
-        adaptiveEl.style.color = '';
-        return;
-    }
-    const r = adv.residuals;
-    const dropRes = (r.earY + r.shoulderY) * 100; // h units, like the drop display
-    adaptiveEl.textContent =
-        `adaptive: ${adv.fused.toFixed(1)}\u00b0 | ` +
-        `neck ${r.neck.toFixed(1)}\u00b0 ` +
-        `neckBody ${r.neckBody.toFixed(1)}\u00b0 ` +
-        `drop ${dropRes.toFixed(1)}h`;
-    console.debug('[adaptive]', adv);
+// readable fixed-width numbers: sign + 1 decimal
+const fmt = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(1)}`;
 
-    const now = performance.now();
-    if (adv.fused >= ADAPTIVE_THRESHOLD) {
-        if (adaptiveStart === null) adaptiveStart = now;
-        if (!adaptiveAlerted && now - adaptiveStart >= SLOUCH_PERIOD * 1000) {
-            adaptiveAlerted = true;
-            console.warn('[adaptive] TRIGGER:', adv.fused.toFixed(1), 'for', (now - adaptiveStart) / 1000, 's');
+const diffRow = document.createElement('tr');
+const diffLabel = document.createElement('td');
+diffRow.append(diffLabel);
+const diffCells = ABS_LABELS.map(() => {
+    const td = document.createElement('td');
+    diffRow.append(td);
+    return td;
+});
+const intRow = document.createElement('tr');
+const intLabel = document.createElement('td');
+intRow.append(intLabel);
+const intCells = ABS_LABELS.map(() => {
+    const td = document.createElement('td');
+    intRow.append(td);
+    return td;
+});
+absValRow.after(diffRow);
+diffRow.after(intRow);
+
+diffLabel.textContent = 'sdiff';
+intLabel.textContent = 'integral';
+
+// sliding window of recent samples (kept long enough for lookback + integral)
+const history: { t: number; vals: number[] }[] = [];
+
+// newest sample at or before cutoffT, for label index i (null if none/NaN)
+function sampleBefore(i: number, cutoffT: number): number | null {
+    for (let j = history.length - 1; j >= 0; j--) {
+        if (history[j].t <= cutoffT) {
+            const v = history[j].vals[i];
+            return Number.isFinite(v) ? v : null;
         }
-        adaptiveEl.style.color = adaptiveAlerted ? 'red' : 'orange';
-    } else {
-        adaptiveStart = null;
-        adaptiveAlerted = false;
-        adaptiveEl.style.color = '';
     }
+    return null;
 }
 
-// --- drift detection v2 sketch: long-term vs short-term low-pass (detection.md) ---
-const driftMeter = new DriftMeter();
-const driftEl = document.createElement('p');
-adaptiveEl.after(driftEl);
+// per-param slouch trigger state (hysteresis, see SLOUCH_THRESH)
+const paramHigh = ABS_LABELS.map(() => false);
 
-function updateDrift(data: any) {
-    if (!data.ear || !data.eye || !data.shoulder || !data.hip) return;
-    const d = driftMeter.value(angles(data), data);
-    const f = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
-    const absSum = d.abs.neck + d.abs.neckBody + 100 * d.abs.drop;
-    driftEl.textContent =
-        `abs: neck ${d.abs.neck.toFixed(1)}\u00b0 neckBody ${d.abs.neckBody.toFixed(1)}\u00b0 ` +
-        `drop ${(d.abs.drop * 100).toFixed(1)}h \u03a3 ${absSum.toFixed(1)} | ` +
-        `diff: ${f(d.fused)}\u00b0`;
-    console.debug('[drift]', d);
+function updateDiff(vals: number[]): number[] {
+    const now = performance.now();
+    history.push({ t: now, vals: vals.slice() });
+    const cutoff = now - (INTEGRAL_WINDOW_S + DIFF_LOOKBACK_S) * 1000;
+    while (history.length > 1 && history[0].t < cutoff) history.shift();
+
+    const winStart = now - INTEGRAL_WINDOW_S * 1000;
+    const integrals: number[] = [];
+    ABS_LABELS.forEach((key, i) => {
+        if (!Number.isFinite(vals[i])) {
+            diffCells[i].textContent = '-';
+            intCells[i].textContent = '-';
+            integrals[i] = NaN;
+            return;
+        }
+        const past = sampleBefore(i, now - DIFF_LOOKBACK_S * 1000);
+        const d = past === null ? 0 : vals[i] - past;
+        diffCells[i].textContent = fmt(d);
+
+        // trapezoidal integral of the diff series over the window (NaN gaps break segments)
+        let integral = 0;
+        let prev: { t: number; d: number } | null = null;
+        for (const s of history) {
+            if (s.t < winStart) continue;
+            const p = sampleBefore(i, s.t - DIFF_LOOKBACK_S * 1000);
+            if (p === null || !Number.isFinite(s.vals[i])) {
+                prev = null;
+                continue;
+            }
+            const cur = { t: s.t, d: s.vals[i] - p };
+            if (prev) integral += ((prev.d + cur.d) / 2) * ((cur.t - prev.t) / 1000);
+            prev = cur;
+        }
+        intCells[i].textContent = fmt(integral);
+        integrals[i] = integral;
+    });
+    return integrals;
 }
 
 const pauseBtn = document.createElement('button');
@@ -224,7 +254,6 @@ if (LOG_ENABLED) {
 // calibration = just the point positions; angles are derived from them
 let correctPoints: Record<string, { x: number; y: number }> | null =
     JSON.parse(localStorage.getItem('correctPosture') ?? 'null')?.points ?? null;
-let correctAngles = correctPoints ? angles(correctPoints) : { head: 0, neck: 0, back: 0, neckBody: 0, neckHead: 0 };
 let slouchStart: number | null = null;
 let alerted = false;
 
@@ -241,54 +270,64 @@ function driftSum(data: any): number | null {
     return sum;
 }
 
+// drop: cumulative y sink vs calibration across all points (model can't see arching,
+// it just lowers everything, so sinking = drop).
+let lastDrop: number | null = null;
+function dropValue(data: any): number | null {
+    if (!correctPoints) {
+        lastDrop = null;
+        return null;
+    }
+    let dySum = 0;
+    let dxSum = 0;
+    let n = 0;
+    const dys: Record<string, number> = {};
+    for (const [k, a] of Object.entries<any>(correctPoints)) {
+        const b = data[k];
+        if (!b) {
+            return lastDrop;
+        }
+        dys[k] = +((b.y - a.y) * 100).toFixed(1);
+        dySum += b.y - a.y;
+        dxSum += Math.abs(b.x - a.x);
+        n++;
+    }
+    const drop = (dySum / n) * 100; // + = all points moved down
+    const dx = (dxSum / n) * 100;
+    lastDrop = drop;
+    return drop;
+}
+
 function updatePosture(data: any) {
     if (!data.ear || !data.eye || !data.shoulder || !data.hip) {
         postureEl.textContent = 'posture: ?';
-        console.debug('[posture] missing points', data);
         return;
     }
     // data = smoothed midpoints from camera
     const ang = angles(data);
     if (LOG_ENABLED) postureLog.log(data, ang);
-    const devs = deviations(ang, correctAngles);
-    const slouch = slouchMeter.value(ang, correctAngles, data, correctPoints);
 
-    let label: string;
-    if (slouch < 5) label = 'good';
-    else if (slouch < 10) label = 'ok';
-    else if (slouch < 13) label = 'bad';
-    else label = 'terrible';
-    postureEl.textContent = `posture: ${label} (${slouch.toFixed(1)}\u00b0)`;
-    const span = (text: string) => {
-        const el = document.createElement('span');
-        el.textContent = text;
-        return el;
-    };
-    // absolute values: 5 angles + upper-body height (mean ear/shoulder y, h units)
-    const heightH = ((data.ear.y + data.shoulder.y) / 2) * 100;
-    const absVals = [
-        `${ang.head.toFixed(1)}\u00b0`,
-        `${ang.neck.toFixed(1)}\u00b0`,
-        `${ang.back.toFixed(1)}\u00b0`,
-        `${ang.neckHead.toFixed(1)}\u00b0`,
-        `${ang.neckBody.toFixed(1)}\u00b0`,
-        `${heightH.toFixed(1)}h`,
-    ];
-    absCells.forEach((td, i) => (td.textContent = absVals[i]));
-    // neckBody is inverted: it shrinks when slouching
-    const neckBodyDev = Math.max(0, correctAngles.neckBody - ang.neckBody);
-    const dropVal = drop(data, correctPoints);
-    tiltsBody.replaceChildren(
-        span('correct:'),
-        span(`neck: ${devs.neck.toFixed(1)}\u00b0`),
-        span(`neckBody: ${neckBodyDev.toFixed(1)}\u00b0`),
-        span(`back: ${devs.back.toFixed(1)}\u00b0`),
-        ...(dropVal === null ? [] : [span(`drop: ${(dropVal * 100).toFixed(1)} h`)]),
+    // absolute values: angles + lean + calibrated drop
+    const lean = data.nose ? Math.abs(data.nose.x - data.shoulder.x) * 100 : NaN;
+    const absNums = [ang.head, ang.neck, ang.neckBody, lean, dropValue(data) ?? NaN];
+    absCells.forEach(
+        (td, i) => (td.textContent = Number.isFinite(absNums[i]) ? absNums[i].toFixed(1) : '-')
     );
-    console.debug('[posture]', { ang, slouch, correctAngles, devs, label, slouchStart, alerted });
+    const integrals = updateDiff(absNums);
+
+    // per-param trigger with hysteresis: fires above SLOUCH_THRESH, clears only
+    // below SLOUCH_THRESH * SLOUCH_HYST_FACTOR. negative integrals never trigger.
+    ABS_LABELS.forEach((key, i) => {
+        const v = integrals[i];
+        if (Number.isFinite(v)) {
+            if (!paramHigh[i] && v > SLOUCH_THRESH) paramHigh[i] = true;
+            else if (paramHigh[i] && v < SLOUCH_THRESH * SLOUCH_HYST_FACTOR) paramHigh[i] = false;
+        }
+        intCells[i].style.backgroundColor = paramHigh[i] ? 'orange' : '';
+    });
 
     const now = performance.now();
-    if (slouch >= 13) {
+    if (paramHigh.some(Boolean)) {
         if (slouchStart === null) slouchStart = now;
         if (!alerted && now - slouchStart >= SLOUCH_PERIOD * 1000) {
             alerted = true;
@@ -308,9 +347,12 @@ correctBtn.addEventListener('click', () => {
     const data = lastData;
     if (!data?.ear || !data?.eye || !data?.shoulder || !data?.hip) return;
     correctPoints = data;
-    correctAngles = angles(data);
     localStorage.setItem('correctPosture', JSON.stringify({ points: correctPoints }));
-    slouchMeter.reset();
+    // reset detector: drop baseline jumps on recalibration
+    history.length = 0;
+    paramHigh.fill(false);
+    slouchStart = null;
+    alerted = false;
 });
 
 const conn = new AppConnection({
@@ -321,11 +363,9 @@ const conn = new AppConnection({
             const data = JSON.parse(msg);
             lastData = data; // always keep latest frame so calibration stays possible
             drawPoints(data);
-            if (LOG_DISTANCE) console.debug('[distance] drift:', driftSum(data)?.toFixed(3));
+            if (LOG_DISTANCE) console.log('[distance] drift:', driftSum(data)?.toFixed(3));
             presence.onFrame(hasPosture(data));
             updatePosture(data);
-            updateAdaptive(data);
-            updateDrift(data);
         } catch {
             // ignore non-json
         }
