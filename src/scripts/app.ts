@@ -334,6 +334,7 @@ const conn = new AppConnection({
         try {
             const data = JSON.parse(msg);
             lastData = data; // always keep latest frame so calibration stays possible
+            if (data.pitch != null) console.log('pitch', data.pitch);
             if (LOG_DISTANCE) console.log('[distance] drift:', driftSum(data)?.toFixed(3));
             presence.onFrame(hasPosture(data));
             updatePosture(data);

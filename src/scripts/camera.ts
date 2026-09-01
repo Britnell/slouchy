@@ -1,4 +1,5 @@
 import { createLandmarker } from './poseLandmarker';
+import { createFaceLandmarker, headPose } from './faceLandmarker';
 import { LandmarkOneEuro } from './filter';
 import { midpoints } from './posture';
 import { drawFrame, fitToVideo } from './canvas';
@@ -65,6 +66,7 @@ const pt = ({ x, y }) => ({ x: r4(x), y: r4(y) });
 
 async function startDetection(conn: CameraConnection, sendIntervalMs: number) {
     const landmarker = await createLandmarker('lite');
+    const faceLandmarker = await createFaceLandmarker();
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     video.srcObject = stream;
     await video.play();
@@ -72,12 +74,18 @@ async function startDetection(conn: CameraConnection, sendIntervalMs: number) {
     const smoother = new LandmarkOneEuro(FILTER_OPTS);
     let lastVideoTime = -1;
     let lastSent = 0;
+    let lastPitch = null; // set by face detection, sent & cleared with next body frame
 
     (function loop() {
         if (peerUp && !paused && video.currentTime !== lastVideoTime) {
             lastVideoTime = video.currentTime;
             const now = performance.now();
             const result = landmarker.detectForVideo(video, now);
+            const face = faceLandmarker.detectForVideo(video, now);
+            if (face?.faceLandmarks?.[0]) {
+                const pose = headPose(face);
+                if (pose) lastPitch = pose.pitch;
+            }
             const raw = result?.landmarks?.[0];
             if (raw) {
                 const landmarks = smoother.smooth(raw, now);
@@ -92,8 +100,10 @@ async function startDetection(conn: CameraConnection, sendIntervalMs: number) {
                             ear: pt(points.ear),
                             eye: pt(points.eye),
                             nose: pt(points.nose),
+                            pitch: lastPitch,
                         }),
                     );
+                    lastPitch = null; // blank until next face detection
                 }
             }
         }

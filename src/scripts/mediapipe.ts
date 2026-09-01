@@ -1,4 +1,5 @@
 import { MODELS, createLandmarker, LandmarkSmoother } from "./poseLandmarker";
+import { createFaceLandmarker, headPose } from "./faceLandmarker";
 import { midpoints, angles, deviations, SlouchMeter, drop } from "./posture";
 import { badidi } from "./tone";
 
@@ -17,17 +18,20 @@ const SLOUCH_THRESHOLD = 13; // deg, above this = slouching
 const SLOUCH_PERIOD = 3; // seconds of slouch before alerting
 
 let landmarker = null;
+let faceLandmarker = null;
 let running = false;
 let lastVideoTime = -1;
 let result = null;
 let lastAngles = null;
 let lastPoints = null;
+let lastHeadPose = null;
 
 const smoother = new LandmarkSmoother();
 const slouchMeter = new SlouchMeter();
 
 const tiltsEl = document.getElementById("tilts");
 const intrinsicEl = document.getElementById("intrinsic");
+const headEl = document.getElementById("head");
 const errorEl = document.getElementById("error");
 
 function showError(msg) {
@@ -50,6 +54,13 @@ function loop() {
         lastVideoTime = video.currentTime;
         const startTimeMs = performance.now();
         result = landmarker.detectForVideo(video, startTimeMs);
+        if (faceLandmarker) {
+            const face = faceLandmarker.detectForVideo(video, startTimeMs);
+            lastHeadPose = face.faceLandmarks?.[0]
+                ? headPose(face)
+                : null;
+            if (lastHeadPose) console.log("headPose", lastHeadPose);
+        }
     }
     displayVideoResult(result);
     updateReadout();
@@ -114,6 +125,15 @@ function updateReadout() {
         ...Object.entries(devs).map(([k, v]) => span(`${k}: ${v.toFixed(1)}\u00b0`)),
     );
     const dropVal = drop(lastPoints, correctPoints);
+    headEl.replaceChildren(
+        ...(lastHeadPose
+            ? [
+                  span(`roll: ${lastHeadPose.roll.toFixed(1)}°`),
+                  span(`pitch: ${lastHeadPose.pitch.toFixed(1)}°`),
+                  span(`yaw: ${lastHeadPose.yaw.toFixed(1)}°`),
+              ]
+            : [span("head: no face")]),
+    );
     intrinsicEl.replaceChildren(
         span(`headNeck: ${(lastAngles.neckHead - correctAngles.neckHead).toFixed(1)}\u00b0`),
         span(`neckBody: ${neckBodyDev.toFixed(1)}\u00b0`),
@@ -146,6 +166,9 @@ startBtn?.addEventListener("click", async () => {
             localStorage.setItem("model", modelSelect.value);
             landmarker = await createLandmarker(modelSelect.value);
         }
+        if (!faceLandmarker) {
+            faceLandmarker = await createFaceLandmarker();
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
             video: true,
         });
@@ -171,6 +194,11 @@ modelSelect.addEventListener("change", () => {
     if (landmarker) {
         landmarker.close();
         landmarker = null;
+    }
+    if (faceLandmarker) {
+        faceLandmarker.close();
+        faceLandmarker = null;
+        lastHeadPose = null;
     }
 });
 
