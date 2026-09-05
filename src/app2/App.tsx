@@ -31,13 +31,13 @@ export default function App() {
     const breakIn = Math.max(0, BREAK_MIN - Math.floor((seating.sessionMs ?? 0) / 60_000));
 
     return (
-        <div class="mx-auto flex min-h-dvh w-full max-w-sm flex-col gap-3 bg-[#101214] p-5">
+        <div class="min-h-dvh w-full bg-[#101214]">
+        <div class="mx-auto flex min-h-dvh w-full max-w-sm flex-col gap-3 p-5">
             {!running ? (
                 // ready view: models preloading/preloaded, waiting for start
                 <div class="flex flex-1 flex-col items-center justify-center gap-4">
                     <h1 class="text-2xl font-bold text-[#EDEEF0]">posture</h1>
                     {state.phase === 'error' && <p class="text-[#E5B567]">{state.status}</p>}
-                    {state.phase === 'loading' && <p class="text-sm text-[#9AA0A8]">loading…</p>}
                     {(state.phase === 'loading' || state.phase === 'ready') && (
                         <button
                             class="rounded-[14px] bg-[#47a3ff] px-6 py-3 text-[15px] font-semibold text-[#101214]"
@@ -66,7 +66,7 @@ export default function App() {
                     <div class="flex w-full flex-col items-center justify-between gap-3.5 rounded-2xl border border-[#282D34] bg-[#171A1E] px-6 py-5">
                         <span class="w-full text-[15px] font-semibold text-[#EDEEF0]">Posture</span>
                         {!state.detecting ? (
-                            <span class="text-sm text-[#9AA0A8]">loading model…</span>
+                            <span class="py-10 text-sm text-[#9AA0A8]">loading…</span>
                         ) : !state.seen ? (
                             <span class="text-sm text-[#9AA0A8]">no one detected</span>
                         ) : (
@@ -87,22 +87,28 @@ export default function App() {
                     {/* sitting card */}
                     <div class="flex w-full flex-col items-center gap-2 rounded-2xl border border-[#282D34] bg-[#171A1E] px-6 py-5">
                         <span class="w-full text-[15px] font-semibold text-[#EDEEF0]">Sitting</span>
-                        <span class="text-[40px] leading-none">{seating.breakDue ? '🚶' : '🪑'}</span>
-                        <span
-                            class={`text-[44px] font-bold leading-none tracking-tight tabular-nums ${seating.breakDue ? 'text-[#E5B567]' : 'text-[#EDEEF0]'}`}
-                        >
-                            {mmss(seating.sessionMs ?? 0)}
-                        </span>
-                        <span class="text-[13px] text-[#9AA0A8]">
-                            {seating.breakDue
-                                ? 'time for a break'
-                                : seating.sitting
-                                  ? `Stand up break in ${breakIn} min`
-                                  : 'not sitting'}
-                        </span>
-                        <span class="text-[13px] text-[#9AA0A8]">
-                            {Math.floor(seating.totalMs / 60_000)} min total today
-                        </span>
+                        {!state.detecting ? (
+                            <span class="py-10 text-sm text-[#9AA0A8]">loading…</span>
+                        ) : (
+                            <>
+                                <span class="text-[40px] leading-none">{seating.breakDue ? '🚶' : '🪑'}</span>
+                                <span
+                                    class={`text-[44px] font-bold leading-none tracking-tight tabular-nums ${seating.breakDue ? 'text-[#E5B567]' : 'text-[#EDEEF0]'}`}
+                                >
+                                    {mmss(seating.sessionMs ?? 0)}
+                                </span>
+                                <span class="text-[13px] text-[#9AA0A8]">
+                                    {seating.breakDue
+                                        ? 'time for a break'
+                                        : seating.sitting
+                                          ? `Stand up break in ${breakIn} min`
+                                          : 'not sitting'}
+                                </span>
+                                <span class="text-[13px] text-[#9AA0A8]">
+                                    {Math.floor(seating.totalMs / 60_000)} min total today
+                                </span>
+                            </>
+                        )}
                     </div>
 
                     {/* pause detection */}
@@ -138,6 +144,7 @@ export default function App() {
             >
                 <CameraView engine={engine} show={running} />
             </SettingsMenu>
+        </div>
         </div>
     );
 }
