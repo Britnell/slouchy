@@ -49,10 +49,13 @@ export default function SettingsMenu({ engine, open, onClose, showDebug, onToggl
             <div class="mx-auto flex h-full w-full max-w-sm flex-col gap-4">
                 {/* header */}
                 <div class="flex items-center justify-between">
-                    <h2 class="text-[17px] font-semibold">Camera setup</h2>
+                    <h2 class="text-[17px] font-semibold">Slouchy</h2>
                     <button class="text-[#9AA0A8]" onClick={onClose} aria-label="close">
                         <Icon name="x" size={20} />
                     </button>
+                </div>
+                <div class="flex items-center justify-between">
+                    <h2 class="text-[17px] font-semibold">Camera setup</h2>
                 </div>
 
                 {/* camera preview (video/canvas stay mounted even when closed) */}
