@@ -1,5 +1,6 @@
 ---
-
+import App from "../app2/App";
+import "../styles/global.css";
 ---
 
 <html lang="en">
@@ -9,27 +10,9 @@
         <link rel="icon" href="/favicon.ico" />
         <meta name="viewport" content="width=device-width" />
         <meta name="generator" content={Astro.generator} />
-        <title>Astro</title>
+        <title>Slouchy</title>
     </head>
     <body>
-        <h1>Astro</h1>
-        <ul class="">
-            <li>
-                <a href="/mediapipe">1. mediapipe demo</a>
-            </li>
-            <li>
-                <a href="/websocket">2. websocket demo</a>
-            </li><li>
-                <a href="/app">3. laptop app</a>
-            </li><li>
-                <a href="/camera">4. camera app</a>
-            </li>
-            <li><a href="/app2">5. app2 (preact)</a></li>
-            <li>
-                <a href="/mkcert-rootCA.pem" download>
-                    download CA cert (phone)</a
-                >
-            </li>
-        </ul>
+        <App client:only="preact" />
     </body>
 </html>
