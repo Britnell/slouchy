@@ -57,9 +57,6 @@ export class PostureEngine {
     private yawFilter = new OneEuroFilter(FILTER_OPTS);
     private lastPitch: number | null = null; // face-landmarker pitch, else null
     private lastYaw: number | null = null; // face-landmarker yaw, 0 = facing screen
-    // view (frontal vs side) swap invalidates history: values read differently,
-    // so stale integrals could instantly fire in the new mode
-    private frontal: boolean | null = null;
 
     // diff/integral history (sliding samples)
     private history: { t: number; vals: number[] }[] = [];
@@ -239,11 +236,6 @@ export class PostureEngine {
         // side view: side-view geometry metrics (head/neck/neckBody/lean) only.
         // ignored params can't trigger but still clear an existing high state.
         const frontal = Math.abs(this.lastYaw ?? 0) < FRONTAL_YAW_DEG;
-        if (this.frontal !== null && frontal !== this.frontal) {
-            this.history.length = 0;
-            this.paramHigh.fill(false);
-        }
-        this.frontal = frontal;
         PARAMS.forEach((p, i) => {
             const ignored = p === 'yaw' || (frontal ? SIDE_ONLY.has(p) : FRONTAL_ONLY.has(p));
             const v = this.integral[i];
