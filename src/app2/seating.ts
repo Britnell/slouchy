@@ -25,6 +25,7 @@ interface Track {
     lastSeen: number | null;
     breakAnnounced: boolean;
     paused: boolean;
+    pausedAt: number | null; // wall time when paused, null = active
 }
 
 export interface SeatingState {
@@ -86,6 +87,7 @@ export function useSeating(engine: PostureEngine, paused: boolean): SeatingState
             lastSeen: null,
             breakAnnounced: false,
             paused,
+            pausedAt: null,
         };
     }
     const t = ref.current;
@@ -97,9 +99,11 @@ export function useSeating(engine: PostureEngine, paused: boolean): SeatingState
 
     const publish = useCallback(() => {
         setSnap((prev) => {
+            // paused = frozen clock, so the timer doesn't tick on
+            const clock = t.pausedAt ?? Date.now();
             const next = {
                 sitting: t.sessionStart !== null,
-                sessionMs: t.sessionStart === null ? null : Date.now() - t.sessionStart,
+                sessionMs: t.sessionStart === null ? null : clock - t.sessionStart,
                 totalMs: t.stored.total,
                 breakDue: t.breakAnnounced,
             };
@@ -109,7 +113,7 @@ export function useSeating(engine: PostureEngine, paused: boolean): SeatingState
 
     const endSession = useCallback(() => {
         if (t.sessionStart === null) return;
-        t.stored.total += Date.now() - t.sessionStart;
+        t.stored.total += (t.pausedAt ?? Date.now()) - t.sessionStart;
         t.sessionStart = null;
         t.lastSeen = null;
         t.breakAnnounced = false;
@@ -126,7 +130,9 @@ export function useSeating(engine: PostureEngine, paused: boolean): SeatingState
                 t.stored.total = 0; // new day, an ongoing session carries over
                 persist();
             }
-            if (t.paused || engine.state.phase !== 'running') {
+            if (t.paused) {
+                // frozen: session (and indicator) hold while paused
+            } else if (engine.state.phase !== 'running') {
                 endSession();
             } else if (engine.state.seen) {
                 t.lastSeen = now;
@@ -142,6 +148,7 @@ export function useSeating(engine: PostureEngine, paused: boolean): SeatingState
             }
 
             if (
+                !t.paused &&
                 t.sessionStart !== null &&
                 !t.breakAnnounced &&
                 now - t.sessionStart >= BREAK_AFTER_MS
@@ -160,11 +167,18 @@ export function useSeating(engine: PostureEngine, paused: boolean): SeatingState
         };
     }, [engine, t, endSession, publish]);
 
-    // pausing folds the ongoing session into the total immediately
+    // pausing freezes the session clock; it resumes seamlessly on unpause
     useEffect(() => {
         t.paused = paused;
-        if (paused) endSession();
-    }, [paused, t, endSession]);
+        if (paused) {
+            t.pausedAt ??= Date.now();
+        } else if (t.pausedAt !== null) {
+            const shift = Date.now() - t.pausedAt;
+            t.pausedAt = null;
+            if (t.sessionStart !== null) t.sessionStart += shift;
+            if (t.lastSeen !== null) t.lastSeen += shift;
+        }
+    }, [paused, t]);
 
     return snap;
 }

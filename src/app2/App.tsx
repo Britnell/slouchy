@@ -70,25 +70,11 @@ export default function App() {
                         <span class="text-sm opacity-70">loading model…</span>
                     ) : (
                         <>
-                            {/* seating hero: emoji + label, counter below */}
-                            <div class="flex flex-col">
-                                <span
-                                    class={`text-4xl font-bold ${seating.breakDue ? 'text-orange-500' : ''}`}
-                                >
-                                    {seating.breakDue ? '🚶' : seating.sitting ? '🪑' : '🚶'}
+                            {/* posture box (top: more important) */}
+                            <div class="flex w-40 flex-col items-center gap-1 rounded-lg border border-slate-300 p-3">
+                                <span class="text-xs font-semibold uppercase tracking-wide opacity-60">
+                                    posture
                                 </span>
-                                <span class="text-sm opacity-70">
-                                    {seating.breakDue ? 'get up!' : seating.sitting ? 'sitting' : 'not at desk'}
-                                </span>
-                                {seating.sitting && !seating.breakDue && (
-                                    <span class="text-4xl font-bold tabular-nums">
-                                        {mmss(seating.sessionMs ?? 0)}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* posture: emoji above label */}
-                            <div class="flex flex-col">
                                 <span class="text-3xl">
                                     {state.slouching ? '🥀' : state.seen ? '🌻' : '❓'}
                                 </span>
@@ -97,6 +83,23 @@ export default function App() {
                                 >
                                     {state.slouching ? 'bad' : state.seen ? 'good' : '?'}
                                 </span>
+                            </div>
+
+                            {/* sitting box */}
+                            <div class="flex w-40 flex-col items-center gap-1 rounded-lg border border-slate-300 p-3">
+                                <span class="text-xs font-semibold uppercase tracking-wide opacity-60">
+                                    sitting
+                                </span>
+                                <span
+                                    class={`text-4xl font-bold ${seating.breakDue ? 'text-orange-500' : ''}`}
+                                >
+                                    {seating.breakDue ? '🚶' : seating.sitting ? '🪑' : '🚶'}
+                                </span>
+                                {seating.sitting && !seating.breakDue && (
+                                    <span class="text-4xl font-bold tabular-nums">
+                                        {mmss(seating.sessionMs ?? 0)}
+                                    </span>
+                                )}
                             </div>
                         </>
                     )}
