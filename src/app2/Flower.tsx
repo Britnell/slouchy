@@ -6,20 +6,22 @@ export default function Flower({ slouch }: { slouch: number }) {
     const t = Math.min(100, Math.max(0, slouch)) / 100;
     const ease = t * t;
 
-    // stem: bottom center -> tip that swings out and drops as t grows
-    const tipX = lerp(42, 74, ease);
-    const tipY = lerp(24, 62, ease);
-    const c2x = lerp(42, 66, ease);
-    const c2y = lerp(50, 66, ease);
-    const stem = `M 42 95 C 42 75, ${c2x} ${c2y}, ${tipX} ${tipY}`;
+    // stem: stays ~same height, but bows/hunches out and the top curls over as t grows
+    const tipX = lerp(42, 60, ease);
+    const tipY = lerp(24, 32, ease); // head only drops a bit
+    const c1x = 42;
+    const c1y = 72;
+    const c2x = lerp(42, 48, ease);
+    const c2y = lerp(46, 56, ease);
+    const stem = `M 42 95 C ${c1x} ${c1y}, ${c2x} ${c2y}, ${tipX} ${tipY}`;
 
     // stem color: green -> dull brown as it wilts
     const g = Math.round(lerp(163, 122, ease));
     const r = Math.round(lerp(63, 150, ease));
     const b = Math.round(lerp(77, 90, ease));
 
-    // head droops further over as t grows
-    const headAngle = lerp(0, 75, ease);
+    // head bends over the hunched top as t grows
+    const headAngle = lerp(0, 45, ease);
 
     return (
         <svg viewBox="0 0 84 102" width="84" height="102">

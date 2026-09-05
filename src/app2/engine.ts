@@ -14,8 +14,8 @@ export const PARAMS = ['head', 'neck', 'neckBody', 'lean', 'drop', 'pitch', 'yaw
 
 // tuning, carried over from the demo scripts
 const FILTER_OPTS = { minCutoff: 1, beta: 0.3, dCutoff: 1 }; // 1 euro filter
-const DIFF_LOOKBACK_S = 8; // diff = value now vs value this long ago
-const INTEGRAL_WINDOW_S = 6; // integrate diff over this window
+const DIFF_LOOKBACK_S = 5; // diff = value now vs value this long ago
+const INTEGRAL_WINDOW_S = 5; // integrate diff over this window
 const SLOUCH_HYST_FACTOR = 0.5; // clears only below SLOUCH_THRESH * this
 const FRONTAL_YAW_DEG = 35; // |yaw| under this = user facing screen (frontal view)
 // which params can trigger slouch per view: side-view geometry metrics are
