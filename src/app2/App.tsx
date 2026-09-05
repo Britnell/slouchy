@@ -31,16 +31,16 @@ export default function App() {
     const breakIn = Math.max(0, BREAK_MIN - Math.floor((seating.sessionMs ?? 0) / 60_000));
 
     return (
-        <div class="min-h-dvh w-full bg-[#101214]">
+        <div class="min-h-dvh w-full bg-bg">
         <div class="mx-auto flex min-h-dvh w-full max-w-sm flex-col gap-3 p-5">
             {!running ? (
                 // ready view: models preloading/preloaded, waiting for start
                 <div class="flex flex-1 flex-col items-center justify-center gap-4">
-                    <h1 class="text-2xl font-bold text-[#EDEEF0]">posture</h1>
-                    {state.phase === 'error' && <p class="text-[#E5B567]">{state.status}</p>}
+                    <h1 class="text-2xl font-bold text-primary">posture</h1>
+                    {state.phase === 'error' && <p class="text-danger">{state.status}</p>}
                     {(state.phase === 'loading' || state.phase === 'ready') && (
                         <button
-                            class="rounded-[14px] bg-[#47a3ff] px-6 py-3 text-[15px] font-semibold text-[#101214]"
+                            class="rounded-[14px] bg-green px-6 py-3 text-[15px] font-semibold text-bg"
                             onClick={() => {
                                 unlockAudio();
                                 engine.start();
@@ -51,7 +51,7 @@ export default function App() {
                     )}
                     {state.phase === 'error' && (
                         <button
-                            class="rounded-[14px] border border-[#282D34] px-4 py-2 text-[#EDEEF0]"
+                            class="rounded-[14px] border border-card-stroke px-4 py-2 text-primary"
                             onClick={() => engine.preload()}
                         >
                             retry
@@ -60,23 +60,23 @@ export default function App() {
                 </div>
             ) : (
                 <>
-                    <h1 class="text-center text-[22px] font-bold tracking-tight text-[#EDEEF0]">Posture App</h1>
+                    <h1 class="text-center text-[22px] font-bold tracking-tight text-primary">Posture App</h1>
 
                     {/* posture card */}
-                    <div class="flex w-full flex-col items-center justify-between gap-3.5 rounded-2xl border border-[#282D34] bg-[#171A1E] px-6 py-5">
-                        <span class="w-full text-[15px] font-semibold text-[#EDEEF0]">Posture</span>
+                    <div class="flex w-full flex-col items-center justify-between gap-3.5 rounded-2xl border border-card-stroke bg-card px-6 py-5">
+                        <span class="w-full text-[15px] font-semibold text-primary">Posture</span>
                         {!state.detecting ? (
-                            <span class="py-10 text-sm text-[#9AA0A8]">loading…</span>
+                            <span class="py-10 text-sm text-secondary">loading…</span>
                         ) : !state.seen ? (
-                            <span class="text-sm text-[#9AA0A8]">no one detected</span>
+                            <span class="text-sm text-secondary">no one detected</span>
                         ) : (
                             <>
                                 {/* flower placeholder: custom posture indicator */}
-                                <div class="grid h-[102px] w-[84px] place-items-center rounded-xl border border-dashed border-[#282D34] text-xs text-[#9AA0A8]">
+                                <div class="grid h-[102px] w-[84px] place-items-center rounded-xl border border-dashed border-card-stroke text-xs text-secondary">
                                     flower
                                 </div>
                                 <span
-                                    class={`text-base font-semibold ${state.slouching ? 'text-[#E5B567]' : 'text-[#47a3ff]'}`}
+                                    class={`text-base font-semibold ${state.slouching ? 'text-danger' : 'text-green'}`}
                                 >
                                     {state.slouching ? 'Bad — sit up straight' : 'Good'}
                                 </span>
@@ -85,26 +85,26 @@ export default function App() {
                     </div>
 
                     {/* sitting card */}
-                    <div class="flex w-full flex-col items-center gap-2 rounded-2xl border border-[#282D34] bg-[#171A1E] px-6 py-5">
-                        <span class="w-full text-[15px] font-semibold text-[#EDEEF0]">Sitting</span>
+                    <div class="flex w-full flex-col items-center gap-2 rounded-2xl border border-card-stroke bg-card px-6 py-5">
+                        <span class="w-full text-[15px] font-semibold text-primary">Sitting</span>
                         {!state.detecting ? (
-                            <span class="py-10 text-sm text-[#9AA0A8]">loading…</span>
+                            <span class="py-10 text-sm text-secondary">loading…</span>
                         ) : (
                             <>
                                 <span class="text-[40px] leading-none">{seating.breakDue ? '🚶' : '🪑'}</span>
                                 <span
-                                    class={`text-[44px] font-bold leading-none tracking-tight tabular-nums ${seating.breakDue ? 'text-[#E5B567]' : 'text-[#EDEEF0]'}`}
+                                    class={`text-[44px] font-bold leading-none tracking-tight tabular-nums ${seating.breakDue ? 'text-danger' : 'text-primary'}`}
                                 >
                                     {mmss(seating.sessionMs ?? 0)}
                                 </span>
-                                <span class="text-[13px] text-[#9AA0A8]">
+                                <span class="text-[13px] text-secondary">
                                     {seating.breakDue
                                         ? 'time for a break'
                                         : seating.sitting
                                           ? `Stand up break in ${breakIn} min`
                                           : 'not sitting'}
                                 </span>
-                                <span class="text-[13px] text-[#9AA0A8]">
+                                <span class="text-[13px] text-secondary">
                                     {Math.floor(seating.totalMs / 60_000)} min total today
                                 </span>
                             </>
@@ -113,7 +113,7 @@ export default function App() {
 
                     {/* pause detection */}
                     <button
-                        class="flex w-full items-center justify-center gap-2 rounded-[14px] border border-[#282D34] bg-[#171A1E] p-4 text-[15px] font-semibold text-[#EDEEF0]"
+                        class="flex w-full items-center justify-center gap-2 rounded-[14px] border border-card-stroke bg-card p-4 text-[15px] font-semibold text-primary"
                         onClick={() => {
                             const p = !paused;
                             setPaused(p);
@@ -121,12 +121,12 @@ export default function App() {
                         }}
                     >
                         {paused ? 'Resume detection' : 'Pause detection'}
-                        <Icon name={paused ? 'play' : 'pause'} size={16} class="text-[#9AA0A8]" />
+                        <Icon name={paused ? 'play' : 'pause'} size={16} class="text-secondary" />
                     </button>
 
                     {/* camera setup */}
                     <button
-                        class="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#47a3ff] p-4 text-[15px] font-semibold text-[#101214]"
+                        class="flex w-full items-center justify-center gap-2 rounded-[14px] bg-green p-4 text-[15px] font-semibold text-bg"
                         onClick={() => setShowSettings(true)}
                     >
                         <Icon name="video" size={18} />

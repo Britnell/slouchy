@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+@theme {
+    /* palette from posture.pen */
+    --color-bg: #0e141d;
+    --color-card: #141b26;
+    --color-card-2: #1b2430;
+    --color-card-stroke: #26303e;
+    --color-primary: #edeef0;
+    --color-secondary: #9aa0a8;
+    --color-green: #47a3ff;
+    --color-danger: #e5b567;
+}
+
 table {
     border-collapse: collapse;
     font-family: monospace;
