@@ -19,5 +19,5 @@
 - i have dev server running - ask me for debug output or errors
 
 ## project
-- working on preact SPA `src/pages/app2.astro` , `src/app2/App.tsx`
+- working on preact SPA `src/pages/app2.astro` , `src/app2/App.tsx` , `src/app2/*.ts`
 - design pencil file :  `./posture.pen`
