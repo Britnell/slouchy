@@ -20,13 +20,33 @@ export default function App() {
     const [showSettings, setShowSettings] = useState(false);
     const [showDebug, setShowDebug] = useState(false);
     const [paused, setPaused] = useState(false);
+    const [camDenied, setCamDenied] = useState(false); // no permission yet → start camera screen
     const running = state.phase === 'running';
     const seating = useSeating(engine, paused && running);
 
     useEffect(() => {
         engine.onState = setState;
         engine.preload();
-        return () => engine.dispose();
+        // probe camera: granted → jump straight into the app, else start screen.
+        // keep the probe stream until start() has its own so the camera light doesn't blink
+        (async () => {
+            let probe: MediaStream | null = null;
+            try {
+                probe = await navigator.mediaDevices.getUserMedia({ video: true });
+                await engine.start();
+            } catch {
+                setCamDenied(true);
+            } finally {
+                probe?.getTracks().forEach((t) => t.stop());
+            }
+        })();
+        // audio needs a user gesture; auto-start skips the start button, so grab any tap
+        const unlock = () => unlockAudio();
+        window.addEventListener('pointerdown', unlock, { once: true });
+        return () => {
+            window.removeEventListener('pointerdown', unlock);
+            engine.dispose();
+        };
     }, [engine]);
 
     const breakIn = Math.max(0, BREAK_MIN - Math.floor((seating.sessionMs ?? 0) / 60_000));
@@ -42,33 +62,52 @@ export default function App() {
         <div class="min-h-dvh w-full bg-bg">
         <div class="mx-auto flex min-h-dvh w-full max-w-sm flex-col gap-3 p-5">
             {!running ? (
-                // ready view: models preloading/preloaded, waiting for start
+                // no camera permission yet: start camera screen
                 <div class="flex flex-1 flex-col items-center justify-center gap-4">
-                    <h1 class="text-2xl font-bold text-primary">posture</h1>
-                    {state.phase === 'error' && <p class="text-danger">{state.status}</p>}
-                    {(state.phase === 'loading' || state.phase === 'ready') && (
+                    <h1 class="text-2xl font-bold text-primary">Slouchy</h1>
+                    {state.phase === 'error' && (
+                        <p class="text-center text-sm text-danger">{state.status}</p>
+                    )}
+                    {camDenied || state.phase === 'error' ? (
                         <button
-                            class="rounded-[14px] bg-green px-6 py-3 text-[15px] font-semibold text-bg"
+                            class="flex w-full items-center justify-center gap-2 rounded-[14px] bg-green p-4 text-[15px] font-semibold text-bg"
                             onClick={() => {
                                 unlockAudio();
                                 engine.start();
                             }}
                         >
-                            Start
+                            <Icon name="video" size={18} />
+                            Start camera
                         </button>
-                    )}
-                    {state.phase === 'error' && (
-                        <button
-                            class="rounded-[14px] border border-card-stroke px-4 py-2 text-primary"
-                            onClick={() => engine.preload()}
-                        >
-                            retry
-                        </button>
+                    ) : (
+                        <span class="text-sm text-secondary">starting…</span>
                     )}
                 </div>
             ) : (
                 <>
-                    <h1 class="text-center text-[22px] font-bold tracking-tight text-primary">Posture App</h1>
+                    <header class="flex w-full items-center justify-between">
+                        <h1 class="text-[22px] font-bold tracking-tight text-primary">Slouchy</h1>
+                        <div class="flex items-center gap-2">
+                            <button
+                                class="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-card-stroke bg-card"
+                                title={paused ? 'Resume detection' : 'Pause detection'}
+                                onClick={() => {
+                                    const p = !paused;
+                                    setPaused(p);
+                                    engine.setPaused(p);
+                                }}
+                            >
+                                <Icon name={paused ? 'play' : 'pause'} size={16} class="text-secondary" />
+                            </button>
+                            <button
+                                class="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-green"
+                                title="Camera setup"
+                                onClick={() => setShowSettings(true)}
+                            >
+                                <Icon name="video" size={16} class="text-bg" />
+                            </button>
+                        </div>
+                    </header>
 
                     {/* posture card */}
                     <div class="flex w-full flex-col items-center justify-between gap-3.5 rounded-2xl border border-card-stroke bg-card px-6 py-5">
@@ -116,27 +155,6 @@ export default function App() {
                         )}
                     </div>
 
-                    {/* pause detection */}
-                    <button
-                        class="flex w-full items-center justify-center gap-2 rounded-[14px] border border-card-stroke bg-card p-4 text-[15px] font-semibold text-primary"
-                        onClick={() => {
-                            const p = !paused;
-                            setPaused(p);
-                            engine.setPaused(p);
-                        }}
-                    >
-                        {paused ? 'Resume detection' : 'Pause detection'}
-                        <Icon name={paused ? 'play' : 'pause'} size={16} class="text-secondary" />
-                    </button>
-
-                    {/* camera setup */}
-                    <button
-                        class="flex w-full items-center justify-center gap-2 rounded-[14px] bg-green p-4 text-[15px] font-semibold text-bg"
-                        onClick={() => setShowSettings(true)}
-                    >
-                        <Icon name="video" size={18} />
-                        Camera setup
-                    </button>
                 </>
             )}
 

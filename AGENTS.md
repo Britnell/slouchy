@@ -17,3 +17,7 @@
 - be smart and debug: if you can not immediately think of the solution to a problem, then just console log to debug, confirm data shape or behaviour
 - do not overthink a problem too much in theory before beginning. do not go back and forth / in circles in your planning. rather solve through iteration. implement part of the solution or make a first rough attempt. don't need to solve complex problems in a single step. if in doubt attempt and we can test / debug and iterate. we are pair programming, i can give feedback
 - i have dev server running - ask me for debug output or errors
+
+## project
+- working on preact SPA `src/pages/app2.astro` , `src/app2/App.tsx`
+- design pencil file :  `./posture.pen`
