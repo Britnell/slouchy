@@ -1,10 +1,18 @@
 
 const ALERT_VOLUME = 0.15;
 
+let ctx: AudioContext | undefined;
+
+/** call from a user gesture (e.g. start button tap) to unlock audio on mobile */
+export function unlockAudio() {
+    ctx ??= new AudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
+}
+
 /** notes: [start offset s, freq Hz, length s][] */
 export function play(notes: [number, number, number][], volume = ALERT_VOLUME) {
-    const ctx = new AudioContext();
-    if (ctx.state === "suspended") ctx.resume();
+    ctx ??= new AudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
     const now = ctx.currentTime + 0.1; // small delay so BT doesn't cut off start
     notes.forEach(([t, freq, len]) => {
         const osc = ctx.createOscillator();
@@ -16,7 +24,6 @@ export function play(notes: [number, number, number][], volume = ALERT_VOLUME) {
         osc.start(now + t);
         osc.stop(now + t + len);
     });
-    setTimeout(() => ctx.close(), 2000);
 }
 
 // semitone offsets of a minor 7 chord: root, minor 3rd, 5th, minor 7th

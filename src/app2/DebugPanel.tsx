@@ -17,16 +17,16 @@ export default function DebugPanel({ state }: { state: EngineState }) {
                 <tr>
                     <th></th>
                     {PARAMS.map((p) => (
-                        <th key={p}>{p}</th>
+                        <th key={p} class="px-1 py-0.5 text-xs sm:px-2 sm:py-1 sm:text-sm">{p}</th>
                     ))}
                 </tr>
             </thead>
             <tbody>
                 {rows.map(([label, vals, f]) => (
                     <tr key={label}>
-                        <td>{label}</td>
+                        <td class="px-1 py-0.5 text-xs sm:px-2 sm:py-1 sm:text-sm">{label}</td>
                         {vals.map((v, i) => (
-                            <td key={i} style={label === 'integral' && state.paramHigh[i] ? 'background: orange' : ''}>
+                            <td key={i} class="px-1 py-0.5 text-xs tabular-nums sm:px-2 sm:py-1 sm:text-sm" style={label === 'integral' && state.paramHigh[i] ? 'background: orange' : ''}>
                                 {f(v)}
                             </td>
                         ))}

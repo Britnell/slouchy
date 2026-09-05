@@ -35,6 +35,8 @@ export interface EngineState {
     paramHigh: boolean[];
     slouching: boolean;
     seen: boolean;
+    // false until the detection loop is actually running (models + camera ready)
+    detecting: boolean;
 }
 
 export class PostureEngine {
@@ -44,6 +46,7 @@ export class PostureEngine {
     private status = 'loading models…';
     private landmarker: any = null;
     private faceLandmarker: any = null;
+    private preloadPromise: Promise<void> | null = null;
 
     private video: HTMLVideoElement | null = null;
     private canvas: HTMLCanvasElement | null = null;
@@ -66,6 +69,7 @@ export class PostureEngine {
     private paramHigh = PARAMS.map(() => false);
     private slouching = false;
     private seen = false;
+    private detecting = false;
 
     // integral above this = param high (positive only). settable via settings
     slouchThresh = 45;
@@ -81,6 +85,7 @@ export class PostureEngine {
             paramHigh: this.paramHigh.slice(),
             slouching: this.slouching,
             seen: this.seen,
+            detecting: this.detecting,
         };
     }
 
@@ -91,6 +96,11 @@ export class PostureEngine {
     // --- model preload, before start ---
 
     async preload() {
+        this.preloadPromise ??= this.doPreload();
+        return this.preloadPromise;
+    }
+
+    private async doPreload() {
         try {
             [this.landmarker, this.faceLandmarker] = await Promise.all([
                 createLandmarker('lite'),
@@ -121,6 +131,14 @@ export class PostureEngine {
 
     async start() {
         try {
+            // switch to the main view immediately; heavy stuff happens below
+            this.phase = 'running';
+            this.status = 'loading models…';
+            this.emit();
+            await this.preload(); // no-op if already done
+            if (this.disposed || this.phase === 'error') return;
+            this.status = 'starting camera…';
+            this.emit();
             this.stream = await navigator.mediaDevices.getUserMedia({ video: true });
             const video = this.video;
             if (!video) throw new Error('no video element attached');
@@ -134,6 +152,7 @@ export class PostureEngine {
             this.phase = 'running';
             this.status = 'running';
             this.lastVideoTime = -1;
+            this.detecting = true;
             this.raf = requestAnimationFrame(this.loop);
             this.emit();
         } catch (err) {

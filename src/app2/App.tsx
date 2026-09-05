@@ -4,6 +4,7 @@ import { useSeating } from './seating';
 import CameraView from './CameraView';
 import DebugPanel from './DebugPanel';
 import SettingsMenu from './SettingsMenu';
+import { speak, unlockAudio } from '../scripts/tone';
 
 function mmss(ms: number) {
     const sec = Math.floor(ms / 1000);
@@ -20,9 +21,11 @@ export default function App() {
     const seating = useSeating(engine, paused && running);
 
     useEffect(() => {
-        engine.onState = setState;
-        engine.preload();
-        return () => engine.dispose();
+      engine.onState = setState;
+      speak('hello world')
+
+      engine.preload();
+      return () => engine.dispose();
     }, [engine]);
 
     return (
@@ -31,11 +34,14 @@ export default function App() {
                 // ready view: models preloading/preloaded, waiting for start
                 <div class="flex flex-1 flex-col items-center justify-center gap-4">
                     <h1 class="text-2xl font-bold">posture</h1>
-                    <p>{state.status}</p>
-                    {state.phase === 'ready' && (
+                    {state.phase === 'error' && <p>{state.status}</p>}
+                    {(state.phase === 'loading' || state.phase === 'ready') && (
                         <button
                             class="rounded-lg bg-sky-500 px-6 py-3 text-lg font-semibold text-white hover:bg-sky-600"
-                            onClick={() => engine.start()}
+                            onClick={() => {
+                                unlockAudio();
+                                engine.start();
+                            }}
                         >
                             start
                         </button>
@@ -53,44 +59,45 @@ export default function App() {
                 </div>
             ) : (
                 <>
-                    {/* meta row */}
-                    <div class="flex flex-wrap items-center gap-3 text-sm opacity-80">
-                        <span>{state.status}</span>
-                    </div>
-
                     {/* today's total, right-aligned above seating */}
                     <div class="self-end rounded-lg bg-slate-300/60 px-2 py-1 text-sm tabular-nums">
                         🪑 {Math.floor(seating.totalMs / 60_000)} min total ☀️
                     </div>
 
-                    {/* seating hero: emoji + label, counter below */}
-                    <div class="flex flex-col">
-                        <span
-                            class={`text-4xl font-bold ${seating.breakDue ? 'text-orange-500' : ''}`}
-                        >
-                            {seating.breakDue ? '🚶' : seating.sitting ? '🪑' : '🚶'}
-                        </span>
-                        <span class="text-sm opacity-70">
-                            {seating.breakDue ? 'get up!' : seating.sitting ? 'sitting' : 'not at desk'}
-                        </span>
-                        {seating.sitting && !seating.breakDue && (
-                            <span class="text-4xl font-bold tabular-nums">
-                                {mmss(seating.sessionMs ?? 0)}
-                            </span>
-                        )}
-                    </div>
+                    {!state.detecting ? (
+                        <span class="text-sm opacity-70">loading model…</span>
+                    ) : (
+                        <>
+                            {/* seating hero: emoji + label, counter below */}
+                            <div class="flex flex-col">
+                                <span
+                                    class={`text-4xl font-bold ${seating.breakDue ? 'text-orange-500' : ''}`}
+                                >
+                                    {seating.breakDue ? '🚶' : seating.sitting ? '🪑' : '🚶'}
+                                </span>
+                                <span class="text-sm opacity-70">
+                                    {seating.breakDue ? 'get up!' : seating.sitting ? 'sitting' : 'not at desk'}
+                                </span>
+                                {seating.sitting && !seating.breakDue && (
+                                    <span class="text-4xl font-bold tabular-nums">
+                                        {mmss(seating.sessionMs ?? 0)}
+                                    </span>
+                                )}
+                            </div>
 
-                    {/* posture: emoji above label */}
-                    <div class="flex flex-col">
-                        <span class="text-3xl">
-                            {state.slouching ? '🥀' : state.seen ? '🌻' : '❓'}
-                        </span>
-                        <span
-                            class={`text-sm ${state.slouching ? 'font-semibold text-orange-500' : 'opacity-70'}`}
-                        >
-                            {state.slouching ? 'bad' : state.seen ? 'good' : '?'}
-                        </span>
-                    </div>
+                            {/* posture: emoji above label */}
+                            <div class="flex flex-col">
+                                <span class="text-3xl">
+                                    {state.slouching ? '🥀' : state.seen ? '🌻' : '❓'}
+                                </span>
+                                <span
+                                    class={`text-sm ${state.slouching ? 'font-semibold text-orange-500' : 'opacity-70'}`}
+                                >
+                                    {state.slouching ? 'bad' : state.seen ? 'good' : '?'}
+                                </span>
+                            </div>
+                        </>
+                    )}
 
                     <div class="flex gap-2">
                         <button
