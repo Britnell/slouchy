@@ -28,23 +28,13 @@
       "padding": 16,
       "children": [
         {
-          "type": "frame",
-          "id": "R4v46",
-          "name": "Status Row",
-          "width": "fill_container",
-          "justifyContent": "end",
-          "children": [
-            {
-              "type": "text",
-              "id": "slUYY",
-              "name": "Status",
-              "fill": "#71717A",
-              "content": "🪑 13 min total ☀️",
-              "fontFamily": "Inter",
-              "fontSize": 15,
-              "fontWeight": "normal"
-            }
-          ]
+          "type": "text",
+          "id": "PH5yG",
+          "fill": "#000000",
+          "content": "Posture App",
+          "fontFamily": "Inter",
+          "fontSize": 22,
+          "fontWeight": "normal"
         },
         {
           "type": "frame",
@@ -135,6 +125,16 @@
               "fontFamily": "Inter",
               "fontSize": 13,
               "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "slUYY",
+              "name": "Status",
+              "fill": "#18181B",
+              "content": "🪑 13 min total",
+              "fontFamily": "Inter",
+              "fontSize": 17,
+              "fontWeight": "600"
             }
           ]
         },
