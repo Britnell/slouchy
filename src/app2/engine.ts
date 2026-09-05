@@ -22,6 +22,10 @@ const FRONTAL_YAW_DEG = 35; // |yaw| under this = user facing screen (frontal vi
 // meaningless from the front, and pitch needs to see the face from the front
 const SIDE_ONLY = new Set(['head', 'neck', 'neckBody', 'lean']);
 const FRONTAL_ONLY = new Set(['pitch']);
+// seating frame acceptance: reject frame if any metric exceeds these
+const SEAT_ANGLE_THRESH = 45; // torso slant diff vs seating, deg
+const SEAT_DIST_THRESH = 0.45; // avg midpoint xy distance vs seating
+const SEAT_SIZE_THRESH = 0.4; // head->hip length diff vs seating
 
 export type Phase = 'loading' | 'ready' | 'running' | 'error';
 
@@ -74,6 +78,65 @@ export class PostureEngine {
     // integral above this = param high (positive only). settable via settings
     slouchThresh = 45;
     paused = false;
+
+    // --- seating position (calibration for ignoring other people / empty chair)
+    private static SEATING_KEY = 'app2.seating';
+    private seatingPos: { x: number; y: number; z: number }[] | null = null; // stored landmarks
+    private lastLandmarks: any = null; // newest smoothed landmarks (for capture)
+    private lastSeatLog = 0;
+    private seatAway = false; // frame discarded/unseen since last accepted frame
+
+    constructor() {
+        try {
+            const s = localStorage.getItem(PostureEngine.SEATING_KEY);
+            if (s) this.seatingPos = JSON.parse(s);
+        } catch {
+            this.seatingPos = null;
+        }
+    }
+
+    get seatingSet() {
+        return this.seatingPos != null;
+    }
+
+    setSeatingPosition(): boolean {
+        if (!this.lastLandmarks) return false;
+        this.seatingPos = this.lastLandmarks.map((p: any) => ({ x: p.x, y: p.y, z: p.z }));
+        localStorage.setItem(PostureEngine.SEATING_KEY, JSON.stringify(this.seatingPos));
+        return true;
+    }
+
+    // metrics of current frame vs seating position, null when unset
+    private seatingMetrics(points: any) {
+        const seat = this.seatingPos ? midpoints(this.seatingPos) : null;
+        if (!seat) return null;
+        // 1. torso slant: shoulder->hip line angle vs seating line angle, abs
+        const ang = angles(points);
+        const seatAng = angles(seat);
+        const angleDiff = Math.abs(ang.back - seatAng.back);
+        // 2. distance: avg xy distance of midpoints vs seating
+        const keys = ['shoulder', 'hip', 'ear', 'eye', 'nose'].filter((k) => points[k] && seat[k]);
+        const dists = keys.map((k) => Math.hypot(points[k].x - seat[k].x, points[k].y - seat[k].y));
+        const avgDist = dists.reduce((a, b) => a + b, 0) / dists.length;
+        // 3. body size: head-mid (ear) -> hip length, abs diff vs seating
+        const size = Math.hypot(points.ear.x - points.hip.x, points.ear.y - points.hip.y);
+        const seatSize = Math.hypot(seat.ear.x - seat.hip.x, seat.ear.y - seat.hip.y);
+        return { angleDiff, avgDist, sizeDiff: Math.abs(size - seatSize) };
+    }
+
+    // frame acceptance vs seating position
+    private seatAccept(seat: { angleDiff: number; avgDist: number; sizeDiff: number }) {
+        const ok =
+            seat.angleDiff <= SEAT_ANGLE_THRESH &&
+            seat.avgDist <= SEAT_DIST_THRESH &&
+            seat.sizeDiff <= SEAT_SIZE_THRESH;
+        return {
+            angle: seat.angleDiff <= SEAT_ANGLE_THRESH,
+            dist: seat.avgDist <= SEAT_DIST_THRESH,
+            size: seat.sizeDiff <= SEAT_SIZE_THRESH,
+            ok,
+        };
+    }
 
     get state(): EngineState {
         return {
@@ -209,6 +272,7 @@ export class PostureEngine {
             return;
         }
         const landmarks = this.smoother.smooth(raw, now);
+        this.lastLandmarks = landmarks;
         const points = midpoints(landmarks);
 
         const canvas = this.canvas;
@@ -227,10 +291,38 @@ export class PostureEngine {
     private onFrame(points: any | null) {
         if (!points || !points.ear || !points.eye || !points.shoulder || !points.hip) {
             this.seen = false;
+            this.seatAway = true;
             this.emit();
             return;
         }
         this.seen = true;
+
+        // seating gate: discard frames not matching seated user (bg person / empty chair)
+        const seat = this.seatingMetrics(points);
+        if (seat && !this.seatAccept(seat).ok) {
+            if (performance.now() - this.lastSeatLog > 500) {
+                this.lastSeatLog = performance.now();
+                console.log(
+                    `seat: angleDiff=${seat.angleDiff.toFixed(1)}° avgDist=${seat.avgDist.toFixed(3)} sizeDiff=${seat.sizeDiff.toFixed(3)} → IGNORE`,
+                );
+            }
+            this.seen = false;
+            this.seatAway = true;
+            this.emit();
+            return;
+        }
+
+        // back in the zone after a discard/unseen gap: start fresh so the
+        // sit-down transition doesn't spike diff/integral into slouch triggers
+        if (this.seatAway) {
+            this.seatAway = false;
+            this.history = [];
+            this.diff = PARAMS.map(() => 0);
+            this.integral = PARAMS.map(() => 0);
+            this.paramHigh = PARAMS.map(() => false);
+            this.slouching = false;
+        }
+
         const ang = angles(points);
 
         // absolute values: angles + lean + drop

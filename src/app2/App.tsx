@@ -19,6 +19,8 @@ export default function App() {
     const [paused, setPaused] = useState(false);
     const running = state.phase === 'running';
     const seating = useSeating(engine, paused && running);
+    const [seatSet, setSeatSet] = useState(engine.seatingSet);
+    const [posJustSet, setPosJustSet] = useState(false);
 
     useEffect(() => {
       engine.onState = setState;
@@ -109,6 +111,23 @@ export default function App() {
                             }}
                         >
                             {paused ? '▶ resume' : '⏸ pause'}
+                        </button>
+                        <button
+                            class={`rounded-lg border px-3 py-1.5 ${seatSet ? 'bg-emerald-600 text-white' : ''}`}
+                            onClick={() => {
+                                if (engine.setSeatingPosition()) {
+                                    setSeatSet(true);
+                                    setPosJustSet(true);
+                                    setTimeout(() => setPosJustSet(false), 10_000);
+                                }
+                            }}
+                        >
+                            📍{' '}
+                            {posJustSet
+                                ? 'position set'
+                                : seatSet
+                                  ? 'update seating pos'
+                                  : 'set seating position'}
                         </button>
                         <button
                             class={`rounded-lg border px-3 py-1.5 ${showDebug ? 'bg-slate-700 text-white' : ''}`}
