@@ -15,9 +15,9 @@ export default function CameraView({ engine, show }: { engine: PostureEngine; sh
     }, [engine]);
 
     return (
-        <div style={{ display: show ? 'block' : 'none' }}>
-            <div class="relative w-full max-w-xl">
-                <video ref={videoRef} playsinline muted class="w-full rounded-lg" />
+        <div class="h-full w-full" style={{ display: show ? 'block' : 'none' }}>
+            <div class="relative h-full w-full">
+                <video ref={videoRef} playsinline muted class="h-full w-full rounded-2xl object-cover" />
                 <canvas ref={canvasRef} class="absolute inset-0 h-full w-full" />
             </div>
         </div>
