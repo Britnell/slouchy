@@ -104,7 +104,10 @@ export function useSeating(engine: PostureEngine, paused: boolean): SeatingState
             const next = {
                 sitting: t.sessionStart !== null,
                 sessionMs: t.sessionStart === null ? null : clock - t.sessionStart,
-                totalMs: t.stored.total,
+                // live total includes the in-progress session, so it ticks up too
+                totalMs:
+                    t.stored.total +
+                    (t.sessionStart === null ? 0 : clock - t.sessionStart),
                 breakDue: t.breakAnnounced,
             };
             return shallowEq(prev, next) ? prev : next; // skip no-op renders
