@@ -16,7 +16,6 @@ export const PARAMS = ['head', 'neck', 'neckBody', 'lean', 'drop', 'pitch', 'yaw
 const FILTER_OPTS = { minCutoff: 1, beta: 0.3, dCutoff: 1 }; // 1 euro filter
 const DIFF_LOOKBACK_S = 8; // diff = value now vs value this long ago
 const INTEGRAL_WINDOW_S = 6; // integrate diff over this window
-const SLOUCH_THRESH = 35; // integral above this = param high (positive only)
 const SLOUCH_HYST_FACTOR = 0.5; // clears only below SLOUCH_THRESH * this
 const FRONTAL_YAW_DEG = 35; // |yaw| under this = user facing screen (frontal view)
 // which params can trigger slouch per view: side-view geometry metrics are
@@ -71,6 +70,8 @@ export class PostureEngine {
     private slouching = false;
     private seen = false;
 
+    // integral above this = param high (positive only). settable via settings
+    slouchThresh = 45;
     paused = false;
 
     get state(): EngineState {
@@ -247,12 +248,12 @@ export class PostureEngine {
             const ignored = p === 'yaw' || (frontal ? SIDE_ONLY.has(p) : FRONTAL_ONLY.has(p));
             const v = this.integral[i];
             if (ignored || !Number.isFinite(v)) {
-                if (this.paramHigh[i] && v < SLOUCH_THRESH * SLOUCH_HYST_FACTOR)
+                if (this.paramHigh[i] && v < this.slouchThresh * SLOUCH_HYST_FACTOR)
                     this.paramHigh[i] = false;
                 return;
             }
-            if (!this.paramHigh[i] && v > SLOUCH_THRESH) this.paramHigh[i] = true;
-            else if (this.paramHigh[i] && v < SLOUCH_THRESH * SLOUCH_HYST_FACTOR)
+            if (!this.paramHigh[i] && v > this.slouchThresh) this.paramHigh[i] = true;
+            else if (this.paramHigh[i] && v < this.slouchThresh * SLOUCH_HYST_FACTOR)
                 this.paramHigh[i] = false;
         });
 

@@ -3,6 +3,7 @@ import { PostureEngine, type EngineState } from './engine';
 import { useSeating } from './seating';
 import CameraView from './CameraView';
 import DebugPanel from './DebugPanel';
+import SettingsMenu from './SettingsMenu';
 
 function mmss(ms: number) {
     const sec = Math.floor(ms / 1000);
@@ -114,6 +115,7 @@ export default function App() {
                         >
                             camera
                         </button>
+                        <SettingsMenu engine={engine} />
                     </div>
 
                     {showDebug && <DebugPanel state={state} />}
