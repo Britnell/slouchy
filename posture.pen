@@ -504,7 +504,7 @@
   "variables": {
     "green": {
       "type": "color",
-      "value": "#3ECF8E"
+      "value": "#47a3ff"
     },
     "danger": {
       "type": "color",
