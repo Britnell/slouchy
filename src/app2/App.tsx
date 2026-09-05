@@ -4,6 +4,7 @@ import { useSeating } from './seating';
 import CameraView from './CameraView';
 import SettingsMenu from './SettingsMenu';
 import { Icon } from './icons';
+import Flower from './Flower';
 import { unlockAudio } from '../scripts/tone';
 
 function mmss(ms: number) {
@@ -29,6 +30,13 @@ export default function App() {
     }, [engine]);
 
     const breakIn = Math.max(0, BREAK_MIN - Math.floor((seating.sessionMs ?? 0) / 60_000));
+
+    // max integral across slouch indicators (NaN params excluded), 20→80 → 0→100
+    const maxIntegral = state.integral.reduce(
+        (m, v) => (Number.isFinite(v) && v > m ? v : m),
+        -Infinity,
+    );
+    const flowerSlouch = Math.min(100, Math.max(0, ((maxIntegral - 20) / 60) * 100));
 
     return (
         <div class="min-h-dvh w-full bg-bg">
@@ -71,10 +79,7 @@ export default function App() {
                             <span class="text-sm text-secondary">no one detected</span>
                         ) : (
                             <>
-                                {/* flower placeholder: custom posture indicator */}
-                                <div class="grid h-[102px] w-[84px] place-items-center rounded-xl border border-dashed border-card-stroke text-xs text-secondary">
-                                    flower
-                                </div>
+                            <Flower slouch={flowerSlouch} />
                                 <span
                                     class={`text-base font-semibold ${state.slouching ? 'text-danger' : 'text-green'}`}
                                 >
