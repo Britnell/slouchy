@@ -10,7 +10,7 @@
       "clip": true,
       "width": 390,
       "height": 844,
-      "fill": "#101214",
+      "fill": "$bg",
       "layout": "vertical",
       "gap": 12,
       "padding": 20,
@@ -18,7 +18,7 @@
         {
           "type": "text",
           "id": "PH5yG",
-          "fill": "#EDEEF0",
+          "fill": "$text-primary",
           "textGrowth": "fixed-width",
           "width": "fill_container",
           "content": "Posture App",
@@ -33,7 +33,7 @@
           "id": "bkO6e",
           "name": "Posture Card",
           "width": "fill_container",
-          "fill": "#171A1E",
+          "fill": "$card",
           "cornerRadius": 16,
           "stroke": "#282D34",
           "strokeWidth": 1,
@@ -50,7 +50,7 @@
               "type": "text",
               "id": "lM2JS",
               "name": "Label",
-              "fill": "#EDEEF0",
+              "fill": "$text-primary",
               "textGrowth": "fixed-width",
               "width": "fill_container",
               "content": "Posture",
@@ -171,7 +171,7 @@
           "id": "FTtcH",
           "name": "Sitting Card",
           "width": "fill_container",
-          "fill": "#171A1E",
+          "fill": "$card",
           "cornerRadius": 16,
           "stroke": "#282D34",
           "strokeWidth": 1,
@@ -187,7 +187,7 @@
               "type": "text",
               "id": "oYoOl",
               "name": "Label",
-              "fill": "#EDEEF0",
+              "fill": "$text-primary",
               "textGrowth": "fixed-width",
               "width": "fill_container",
               "content": "Sitting",
@@ -209,7 +209,7 @@
               "type": "text",
               "id": "v7RqJn",
               "name": "Timer",
-              "fill": "#EDEEF0",
+              "fill": "$text-primary",
               "content": "00:33",
               "fontFamily": "Inter",
               "fontSize": 44,
@@ -220,7 +220,7 @@
               "type": "text",
               "id": "Uztsw",
               "name": "Hint",
-              "fill": "#9AA0A8",
+              "fill": "$text-secondary",
               "content": "Stand up break in 27 min",
               "fontFamily": "Inter",
               "fontSize": 13,
@@ -230,7 +230,7 @@
               "type": "text",
               "id": "n2IvGl",
               "name": "Total",
-              "fill": "#9AA0A8",
+              "fill": "$text-secondary",
               "content": "13 min total today",
               "fontFamily": "Inter",
               "fontSize": 13,
@@ -243,7 +243,7 @@
           "id": "Exsde",
           "name": "Pause Button",
           "width": "fill_container",
-          "fill": "#171A1E",
+          "fill": "$card",
           "cornerRadius": 14,
           "stroke": "#282D34",
           "strokeWidth": 1,
@@ -256,7 +256,7 @@
               "type": "text",
               "id": "mg2ng",
               "name": "Label",
-              "fill": "#EDEEF0",
+              "fill": "$text-primary",
               "content": "Pause detection",
               "fontFamily": "Inter",
               "fontSize": 15,
@@ -270,7 +270,7 @@
               "height": 16,
               "icon": "pause",
               "library": "lucide",
-              "fill": "#9AA0A8"
+              "fill": "$text-secondary"
             }
           ]
         },
@@ -294,13 +294,13 @@
               "height": 18,
               "icon": "video",
               "library": "lucide",
-              "fill": "#101214"
+              "fill": "$bg"
             },
             {
               "type": "text",
               "id": "zyUfz",
               "name": "Label",
-              "fill": "#101214",
+              "fill": "$bg",
               "content": "Camera setup",
               "fontFamily": "Inter",
               "fontSize": 15,
@@ -319,7 +319,7 @@
       "clip": true,
       "width": 390,
       "height": 844,
-      "fill": "#101214",
+      "fill": "$bg",
       "layout": "vertical",
       "gap": 16,
       "padding": 20,
@@ -336,7 +336,7 @@
               "type": "text",
               "id": "I7i2ew",
               "name": "Title",
-              "fill": "#EDEEF0",
+              "fill": "$text-primary",
               "content": "Camera setup",
               "fontFamily": "Inter",
               "fontSize": 17,
@@ -350,7 +350,7 @@
               "height": 20,
               "icon": "x",
               "library": "lucide",
-              "fill": "#9AA0A8"
+              "fill": "$text-secondary"
             }
           ]
         },
@@ -361,7 +361,7 @@
           "clip": true,
           "width": "fill_container",
           "height": 300,
-          "fill": "#1E2228",
+          "fill": "$card-2",
           "cornerRadius": 16,
           "stroke": "#282D34",
           "strokeWidth": 1,
@@ -397,7 +397,7 @@
               "type": "text",
               "id": "g8VK0c",
               "name": "Label",
-              "fill": "#101214",
+              "fill": "$bg",
               "content": "Set seating position",
               "fontFamily": "Inter",
               "fontSize": 15,
@@ -411,7 +411,7 @@
               "height": 16,
               "icon": "crosshair",
               "library": "lucide",
-              "fill": "#101214"
+              "fill": "$bg"
             }
           ]
         },
@@ -431,7 +431,7 @@
               "type": "text",
               "id": "N258JY",
               "name": "Label",
-              "fill": "#EDEEF0",
+              "fill": "$text-primary",
               "content": "Slouch sensitivity",
               "fontFamily": "Inter",
               "fontSize": 15,
@@ -441,7 +441,7 @@
               "type": "frame",
               "id": "w2xr5",
               "name": "Select",
-              "fill": "#171A1E",
+              "fill": "$card",
               "cornerRadius": 10,
               "stroke": "#282D34",
               "strokeWidth": 1,
@@ -456,7 +456,7 @@
                   "type": "text",
                   "id": "LmiKO",
                   "name": "Value",
-                  "fill": "#EDEEF0",
+                  "fill": "$text-primary",
                   "content": "Normal",
                   "fontFamily": "Inter",
                   "fontSize": 13,
@@ -470,7 +470,7 @@
                   "height": 14,
                   "icon": "chevron-down",
                   "library": "lucide",
-                  "fill": "#9AA0A8"
+                  "fill": "$text-secondary"
                 }
               ]
             }
@@ -481,7 +481,7 @@
           "id": "nDXeT",
           "name": "Close Button",
           "width": "fill_container",
-          "fill": "#171A1E",
+          "fill": "$card",
           "cornerRadius": 14,
           "padding": 16,
           "justifyContent": "center",
@@ -490,7 +490,7 @@
               "type": "text",
               "id": "CJiAN",
               "name": "Label",
-              "fill": "#EDEEF0",
+              "fill": "$text-primary",
               "content": "Done",
               "fontFamily": "Inter",
               "fontSize": 15,
@@ -512,19 +512,19 @@
     },
     "bg": {
       "type": "color",
-      "value": "#101214"
+      "value": "#0E141D"
     },
     "card": {
       "type": "color",
-      "value": "#171A1E"
+      "value": "#141B26"
     },
     "card-2": {
       "type": "color",
-      "value": "#1E2228"
+      "value": "#1B2430"
     },
     "card-stroke": {
       "type": "color",
-      "value": "#282D34"
+      "value": "#26303E"
     },
     "text-primary": {
       "type": "color",
